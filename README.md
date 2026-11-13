@@ -33,4 +33,4 @@ A no-email, no-password public chat room. Visitors create a temporary Supabase a
 - Anonymous sessions are browser/device-specific. Clearing browser data can lose the session and profile.
 - Enable CAPTCHA/Turnstile and tune Auth rate limits before opening the room publicly.
 - Seven-day expiry currently means messages become invisible after seven days. A scheduled cleanup job is still needed for physical deletion from the database.
-- Add reporting, moderation, and abuse controls before sharing widely.
+- Add reporting, moderation, and abuse controls before sharing widely...
