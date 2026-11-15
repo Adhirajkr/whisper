@@ -20,3 +20,47 @@
 .reaction-counts{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .reaction-counts span{border:1px solid #ffffff1c;background:#18263b;border-radius:20px;padding:3px 8px;font-size:11px;color:#dce8ff}
 .light .reaction-counts span{background:#edf2fa;border-color:#dbe4f2;color:#273955}
+
+
+/* Animated sticker picker and chat rendering */
+.emoji-picker{width:min(390px,calc(100vw - 28px));max-height:min(430px,65vh);overflow:hidden;display:flex;flex-direction:column}
+.emoji-tabs{flex:none}
+.emoji-grid{max-height:260px;grid-template-columns:repeat(7,minmax(0,1fr));overflow:auto}
+.emoji-grid button{font-size:27px;min-height:42px;transition:transform .16s ease,background .16s ease}
+.emoji-grid button:active{transform:scale(.82)}
+.meme-picker-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:12px 2px 3px;overflow:auto}
+.meme-picker-card{position:relative;min-width:0;min-height:108px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;overflow:hidden;border:1px solid #ffffff1c;border-radius:13px;background:linear-gradient(145deg,#263653,#151e30);color:#fff;padding:9px 5px;transition:transform .18s ease,border-color .18s ease}
+.meme-picker-card:hover{transform:translateY(-3px) scale(1.025);border-color:#8ab1ff99}
+.meme-picker-card>span{font-size:28px;font-weight:900;line-height:1.15;animation:stickerFloat 2.2s ease-in-out infinite}
+.meme-picker-card>b{font:800 12px 'Space Grotesk';letter-spacing:.6px}
+.meme-picker-card>small{font-size:7px;letter-spacing:.5px;color:#c4d2e9;text-align:center}
+.meme-picker-card.six-seven,.sent-meme-sticker.six-seven{background:linear-gradient(135deg,#f6c44f,#f08b40);color:#281b12}
+.meme-picker-card.lol,.sent-meme-sticker.lol{background:linear-gradient(135deg,#ffb2d0,#a77cff);color:#281632}
+.meme-picker-card.goat,.sent-meme-sticker.goat{background:linear-gradient(135deg,#f6f0d8,#b8d4a5);color:#243321}
+.meme-picker-card.rizz,.sent-meme-sticker.rizz{background:linear-gradient(135deg,#ff9bc8,#8c75ff);color:#241332}
+.meme-picker-card.aura,.sent-meme-sticker.aura{background:linear-gradient(135deg,#6fe4d0,#678bff);color:#102c45}
+.meme-picker-card.mogging,.sent-meme-sticker.mogging{background:linear-gradient(135deg,#a6b8ce,#566987);color:#101a2b}
+.meme-picker-card.cooked,.sent-meme-sticker.cooked{background:linear-gradient(135deg,#ff9b5c,#e74d52);color:#35140d}
+.meme-picker-card.skibidi,.sent-meme-sticker.skibidi{background:linear-gradient(135deg,#9ae7dc,#6a9ce9);color:#122b3b}
+.meme-picker-card.sigma,.sent-meme-sticker.sigma{background:linear-gradient(135deg,#b3b8c9,#59627b);color:#151a28}
+.meme-picker-card.no-cap,.sent-meme-sticker.no-cap{background:linear-gradient(135deg,#8bc7ff,#536ee5);color:#101e42}
+.meme-picker-card.bruh,.sent-meme-sticker.bruh{background:linear-gradient(135deg,#b6a0ff,#6674c9);color:#1a1740}
+.meme-picker-card.npc,.sent-meme-sticker.npc{background:linear-gradient(135deg,#a4e3f1,#8294bc);color:#15283b}
+.meme-picker-card.win,.sent-meme-sticker.win{background:linear-gradient(135deg,#ffe58d,#ffad5c);color:#3c2609}
+.meme-picker-card.loss,.sent-meme-sticker.loss{background:linear-gradient(135deg,#b6b8c7,#777f9d);color:#24283b}
+.meme-picker-card.lock-in,.sent-meme-sticker.lock-in{background:linear-gradient(135deg,#8df0b9,#44a9a4);color:#10352d}
+.sticker-bubble{padding:0!important;background:transparent!important;overflow:visible!important}
+.sent-emoji-sticker{font-size:clamp(48px,9vw,76px);line-height:1.15;padding:5px 10px;filter:drop-shadow(0 7px 9px #0004);animation:emojiStickerPop .42s cubic-bezier(.2,1.6,.4,1) both;transform-origin:center}
+.sent-meme-sticker{position:relative;isolation:isolate;width:154px;min-height:132px;border-radius:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:13px 12px;overflow:hidden;box-shadow:0 9px 25px #0003;animation:memeStickerIn .55s cubic-bezier(.18,1.35,.35,1) both}
+.sent-meme-sticker:before{content:"";position:absolute;inset:7px;border:1px solid #ffffff77;border-radius:16px;opacity:.65;pointer-events:none}
+.sent-meme-sticker .meme-art{font-size:39px;line-height:1.1;font-weight:900;text-shadow:0 3px 7px #0002;animation:stickerFloat 2s ease-in-out infinite}
+.sent-meme-sticker strong{font:900 21px 'Space Grotesk';letter-spacing:1px;line-height:1.1}
+.sent-meme-sticker small{font-size:7px;font-weight:800;letter-spacing:1px;opacity:.78}
+.meme-spark{position:absolute;font-style:normal;font-size:17px;animation:sparkle 1.8s ease-in-out infinite}
+.spark-one{top:13px;left:17px}.spark-two{right:15px;bottom:13px;animation-delay:.7s}
+.light .meme-picker-card{border-color:#263c6025}
+@keyframes emojiStickerPop{0%{opacity:0;transform:scale(.35) rotate(-12deg)}70%{opacity:1;transform:scale(1.16) rotate(4deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes memeStickerIn{0%{opacity:0;transform:translateY(12px) scale(.55) rotate(-7deg)}65%{opacity:1;transform:translateY(-3px) scale(1.06) rotate(2deg)}100%{transform:translateY(0) scale(1) rotate(0)}}
+@keyframes stickerFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
+@keyframes sparkle{0%,100%{opacity:.35;transform:scale(.7) rotate(0)}50%{opacity:1;transform:scale(1.25) rotate(25deg)}}
+@media(max-width:480px){.emoji-picker{right:0;bottom:66px;width:calc(100vw - 24px);max-height:58vh}.meme-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.meme-picker-card{min-height:96px}.sent-meme-sticker{width:138px;min-height:122px}}
