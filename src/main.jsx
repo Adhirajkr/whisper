@@ -4,7 +4,14 @@ import { supabase, supabaseReady } from './supabase';
 import { MessageCircle, Users, Shuffle, Heart, LogOut, Send, Shield, Sparkles, Menu, X, Smile, Moon, Sun, Reply, Ban } from 'lucide-react';
 import './style.css';
 
-const EMOJIS = ['❤️','😂','🔥','😍','😮','👏'];
+const EMOJI_CATEGORIES = [
+  { name: 'Trending', items: ['😭','💀','🫠','✨','🫶','🤌','🥹','😩','🗿','👀','🤡','😎','🔥','💅','🧿','🫡'] },
+  { name: 'Faces', items: ['😀','😂','🤣','🥲','🥹','😊','😍','🥰','😘','😜','🤪','🤔','😴','😭','😤','🤯','🫠','💀'] },
+  { name: 'Gestures', items: ['👋','🫶','👏','🙌','🤝','🙏','👍','👎','🤌','✌️','🤟','🫰','💅','🫡'] },
+  { name: 'Hearts', items: ['❤️','🩷','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','💕','💞','💘'] },
+  { name: 'Fun', items: ['🔥','✨','💯','🎉','🥳','👑','💎','🌈','⭐','⚡','🍿','🧋','🦋','🐸'] }
+];
+const EMOJIS = ['❤️','😂','🔥','😍','😭','💀','🫶','✨','👀','🥹','🤌','🗿'];
 // Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
 const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
@@ -30,7 +37,7 @@ function App() {
   const [favorites, setFavorites] = useState([]);
   const [blocked, setBlocked] = useState([]);
   const [showPeople, setShowPeople] = useState(false);
-  const [splash, setSplash] = useState(true);
+  const [splash, setSplash] = useState(true);\n  const [splashExiting, setSplashExiting] = useState(false);\n  const [emojiOpen, setEmojiOpen] = useState(false);\n  const [emojiTab, setEmojiTab] = useState('Trending');
   const [dark, setDark] = useState(true);
   const [toast, setToast] = useState('');
   const bottomRef = useRef(null);
@@ -62,16 +69,8 @@ function App() {
     loadPeople();
     loadBlocksAndFavorites();
     loadMessages();
-    const presence = supabase.channel('chaattiko-presence', { config: { presence: { key: session.user.id } } });
-    presence.on('presence', { event: 'sync' }, () => {
-      const state = presence.presenceState();
-      setOnline(Object.keys(state));
-    }).subscribe(async status => {
-      if (status === 'SUBSCRIBED') {
-        await presence.track({ username: profile.username, online_at: new Date().toISOString() });
-        await supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id);
-      }
-    });
+    const heartbeat = () => supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id);
+    heartbeat();
     const messagesChannel = supabase.channel('chat-messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
       .subscribe();
@@ -79,11 +78,25 @@ function App() {
     return () => { supabase.removeChannel(presence); supabase.removeChannel(messagesChannel); };
   }, [session, profile, conversation]);
 
+  useEffect(() => {
+    if (!session || !profile || !supabase) return;
+    const beat = async () => {
+      await supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id);
+      await loadPeople();
+    };
+    const timer = setInterval(beat, 20000);
+    return () => clearInterval(timer);
+  }, [session?.user?.id, profile?.id]);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   async function loadPeople() {
-    const { data } = await supabase.from('profiles').select('id,username,gender,last_seen_at,is_banned').neq('id', session.user.id).eq('is_banned', false).order('username');
-    setPeople(data || []);
+    const { data, error: peopleError } = await supabase.from('profiles').select('id,username,gender,last_seen_at,is_banned').neq('id', session.user.id).eq('is_banned', false).order('username');
+    if (peopleError) { setToast(peopleError.message); return; }
+    const rows = data || [];
+    setPeople(rows);
+    const cutoff = Date.now() - 90000;
+    setOnline(rows.filter(p => p.last_seen_at && Date.parse(p.last_seen_at) >= cutoff).map(p => p.id));
   }
   async function loadBlocksAndFavorites() {
     const [{data:b},{data:f}] = await Promise.all([
@@ -209,7 +222,7 @@ function App() {
       <section className="chat-panel">
         <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title="Block / unblock"><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
         <div className="messages">
-          {!target&&splash&&<div className="welcome-splash" onClick={()=>setSplash(false)}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
+          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'pixel-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),650);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
           {messages.map(m=><div key={m.id} className={m.user_id===session.user.id?'message mine':'message'}>
@@ -220,7 +233,12 @@ function App() {
         {isBlocked?<div className="blocked-note">This conversation is blocked. Only the person who created the block can unblock it.</div>:<form className="composer" onSubmit={sendMessage}>
           {reply&&<div className="replying"><span>Replying to {reply.username}</span><button type="button" onClick={()=>setReply(null)}>×</button></div>}
           <input value={draft} onChange={e=>setDraft(e.target.value)} placeholder={target?'Message privately…':'Send a message to everyone…'} maxLength="2000"/>
-          <button className="emoji-btn" type="button" onClick={()=>setDraft(d=>d+' 😊')}><Smile/></button><button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
+          <button className="emoji-btn" type="button" aria-label="Open emoji picker" onClick={()=>setEmojiOpen(v=>!v)}><Smile/></button>
+          {emojiOpen&&<div className="emoji-picker">
+            <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}</div>
+            <div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>setDraft(d=>d+em)}>{em}</button>)}</div>
+          </div>}
+          <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
         </form>}
       </section>
     </div>
