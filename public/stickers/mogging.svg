@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="190" viewBox="0 0 240 190" role="img" aria-label="MOGGING sticker">
+ <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c5d3e6"/><stop offset="1" stop-color="#63738f"/></linearGradient><filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#14213b" flood-opacity=".22"/></filter></defs>
+ <style>.bob{transform-origin:120px 100px;animation:bob 2.2s ease-in-out infinite}.spark{transform-origin:center;animation:blink 1.4s ease-in-out infinite alternate}@keyframes bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}@keyframes blink{from{opacity:.3;transform:scale(.7)}to{opacity:1;transform:scale(1.2)}}</style>
+ <rect x="5" y="5" width="230" height="180" rx="25" fill="url(#bg)" stroke="#ffffff" stroke-opacity=".65" stroke-width="3"/>
+ <circle class="spark" cx="28" cy="31" r="5" fill="#fff"/><path class="spark" d="M202 25 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4Z" fill="#fff"/>
+ <g filter="url(#shadow)"><g class="bob"><path d="M60 91 Q60 36 120 35 Q180 36 180 91 L168 143 Q120 174 72 143Z" fill="#f0c9a5" stroke="#26334c" stroke-width="7"/><path d="M64 82 L112 78 L119 105 L103 119 L68 111Z M176 82 L128 78 L121 105 L137 119 L172 111Z" fill="#18263e" stroke="#fff" stroke-width="5"/><path d="M112 91 L128 91" stroke="#26334c" stroke-width="8"/><path d="M95 140 Q120 150 145 140" fill="none" stroke="#26334c" stroke-width="7" stroke-linecap="round"/></g></g>
+ <rect x="13" y="157" width="214" height="20" rx="10" fill="#16223b" fill-opacity=".82"/>
+ <text x="120" y="171" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="900" letter-spacing="1.4" fill="#fff">MAIN CHARACTER ENERGY</text>
+ </svg>

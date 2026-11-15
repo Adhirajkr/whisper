@@ -14,21 +14,21 @@ const EMOJI_CATEGORIES = [
 ];
 const EMOJIS = ['❤️','😂','🔥','😍','😭','💀','🫶','✨','👀','🥹','🤌','🗿'];
 const MEME_STICKERS = [
-  { id:'six-seven', title:'6 7', sub:'SIX SEVEN', art:'67', vibe:'six-seven' },
-  { id:'lol', title:'LOL', sub:'CAN’T STOP LAUGHING', art:'😂', vibe:'lol' },
-  { id:'goat', title:'GOAT', sub:'GREATEST OF ALL TIME', art:'🐐', vibe:'goat' },
-  { id:'rizz', title:'RIZZ', sub:'UNMATCHED CHARISMA', art:'✨', vibe:'rizz' },
-  { id:'aura', title:'AURA', sub:'+1000 AURA', art:'✦', vibe:'aura' },
-  { id:'mogging', title:'MOGGING', sub:'MAIN CHARACTER', art:'😎', vibe:'mogging' },
-  { id:'cooked', title:'COOKED', sub:'IT’S OVER', art:'🔥', vibe:'cooked' },
-  { id:'skibidi', title:'SKIBIDI', sub:'WHAT DID I JUST SEE', art:'🚽', vibe:'skibidi' },
-  { id:'sigma', title:'SIGMA', sub:'ON MY OWN GRIND', art:'🗿', vibe:'sigma' },
-  { id:'no-cap', title:'NO CAP', sub:'100% FACTS', art:'🧢', vibe:'no-cap' },
-  { id:'bruh', title:'BRUH', sub:'SERIOUSLY?!', art:'💀', vibe:'bruh' },
-  { id:'npc', title:'NPC', sub:'SAME ENERGY', art:'🤖', vibe:'npc' },
-  { id:'w', title:'W', sub:'THAT’S A WIN', art:'🏆', vibe:'win' },
-  { id:'l', title:'L', sub:'TAKE THE L', art:'🥀', vibe:'loss' },
-  { id:'lock-in', title:'LOCK IN', sub:'FOCUS MODE', art:'⚡', vibe:'lock-in' }
+  { id:'six-seven', title:'6 7', sub:'SIX SEVEN', image:'/stickers/six-seven.svg', vibe:'six-seven' },
+  { id:'lol', title:'LOL', sub:"CAN'T STOP LAUGHING", image:'/stickers/lol.svg', vibe:'lol' },
+  { id:'goat', title:'GOAT', sub:'GREATEST OF ALL TIME', image:'/stickers/goat.svg', vibe:'goat' },
+  { id:'rizz', title:'RIZZ', sub:'UNMATCHED CHARISMA', image:'/stickers/rizz.svg', vibe:'rizz' },
+  { id:'aura', title:'AURA', sub:'+1000 AURA', image:'/stickers/aura.svg', vibe:'aura' },
+  { id:'mogging', title:'MOGGING', sub:'MAIN CHARACTER', image:'/stickers/mogging.svg', vibe:'mogging' },
+  { id:'cooked', title:'COOKED', sub:"IT'S OVER", image:'/stickers/cooked.svg', vibe:'cooked' },
+  { id:'skibidi', title:'SKIBIDI', sub:'WHAT DID I JUST SEE', image:'/stickers/skibidi.svg', vibe:'skibidi' },
+  { id:'sigma', title:'SIGMA', sub:'SILENT GRIND', image:'/stickers/sigma.svg', vibe:'sigma' },
+  { id:'no-cap', title:'NO CAP', sub:'100% FACTS', image:'/stickers/no-cap.svg', vibe:'no-cap' },
+  { id:'bruh', title:'BRUH', sub:'SERIOUSLY?!', image:'/stickers/bruh.svg', vibe:'bruh' },
+  { id:'npc', title:'NPC', sub:'DEFAULT RESPONSE', image:'/stickers/npc.svg', vibe:'npc' },
+  { id:'w', title:'W', sub:"THAT'S A WIN", image:'/stickers/w.svg', vibe:'win' },
+  { id:'l', title:'L', sub:'TAKE THE L', image:'/stickers/l.svg', vibe:'loss' },
+  { id:'lock-in', title:'LOCK IN', sub:'FOCUS MODE', image:'/stickers/lock-in.svg', vibe:'lock-in' }
 ];
 const stickerBody = (kind, id) => '[[chaattiko:' + kind + ':' + id + ']]';
 function StickerMessage({ body }) {
@@ -38,9 +38,8 @@ function StickerMessage({ body }) {
   if (kind === 'emoji') return <div className="sent-emoji-sticker" aria-label={id}>{id}</div>;
   const sticker = MEME_STICKERS.find(item => item.id === id);
   if (!sticker) return body;
-  return <div className={'sent-meme-sticker ' + sticker.vibe} role="img" aria-label={sticker.title}>
-    <span className="meme-art">{sticker.art}</span><strong>{sticker.title}</strong><small>{sticker.sub}</small>
-    <i className="meme-spark spark-one">✦</i><i className="meme-spark spark-two">✧</i>
+  return <div className="sent-meme-sticker" role="img" aria-label={sticker.title}>
+    <img src={sticker.image} alt={sticker.title + ' animated sticker'} loading="lazy" />
   </div>;
 }
 // Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
@@ -167,7 +166,7 @@ function App() {
   }
   async function loadMessages() {
     if (!session) return;
-    let q = supabase.from('messages').select('id,user_id,username,body,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:true}).limit(150);
+    let q = supabase.from('messages').select('id,user_id,username,body,message_type,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:true}).limit(150);
     q = conversation ? q.eq('conversation_id',conversation) : q.is('conversation_id',null);
     const {data,error:e} = await q;
     if (!e) {
@@ -223,6 +222,7 @@ function App() {
     if (!profile) return;
     const { error: stickerError } = await supabase.from('messages').insert({
       user_id:session.user.id, username:profile.username, body:stickerBody(kind,id),
+      message_type:kind === 'meme' ? 'sticker' : 'emoji',
       reply_to:reply?.id || null, conversation_id:conversation || null
     });
     if (stickerError) setToast(stickerError.message);
@@ -324,7 +324,7 @@ function App() {
           {emojiOpen&&<div className="emoji-picker">
             <div className="emoji-tabs">{[...EMOJI_CATEGORIES.map(c=>c.name),'Memes'].map(tab=><button type="button" className={emojiTab===tab?'active':''} key={tab} onClick={()=>setEmojiTab(tab)}>{tab}</button>)}</div>
             {emojiTab==='Memes'
-              ? <div className="meme-picker-grid">{MEME_STICKERS.map(sticker=><button type="button" className={'meme-picker-card ' + sticker.vibe} key={sticker.id} onClick={()=>sendSticker('meme',sticker.id)}><span>{sticker.art}</span><b>{sticker.title}</b><small>{sticker.sub}</small></button>)}</div>
+              ? <div className="meme-picker-grid">{MEME_STICKERS.map(sticker=><button type="button" className={'meme-picker-card ' + sticker.vibe} key={sticker.id} onClick={()=>sendSticker('meme',sticker.id)}><img src={sticker.image} alt={sticker.title + ' animated sticker preview'} loading="lazy"/><b>{sticker.title}</b><small>{sticker.sub}</small></button>)}</div>
               : <div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} aria-label={'Send ' + em} onClick={()=>sendSticker('emoji',em)}>{em}</button>)}</div>}
           </div>}
           <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>

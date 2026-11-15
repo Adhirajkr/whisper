@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="190" viewBox="0 0 240 190" role="img" aria-label="L sticker">
+ <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c7cbd7"/><stop offset="1" stop-color="#737d9d"/></linearGradient><filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#14213b" flood-opacity=".22"/></filter></defs>
+ <style>.bob{transform-origin:120px 100px;animation:bob 2.2s ease-in-out infinite}.spark{transform-origin:center;animation:blink 1.4s ease-in-out infinite alternate}@keyframes bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}@keyframes blink{from{opacity:.3;transform:scale(.7)}to{opacity:1;transform:scale(1.2)}}</style>
+ <rect x="5" y="5" width="230" height="180" rx="25" fill="url(#bg)" stroke="#ffffff" stroke-opacity=".65" stroke-width="3"/>
+ <circle class="spark" cx="28" cy="31" r="5" fill="#fff"/><path class="spark" d="M202 25 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4Z" fill="#fff"/>
+ <g filter="url(#shadow)"><g class="bob"><path d="M120 152 Q93 119 66 92 Q63 54 93 54 Q112 54 120 77 Q128 54 147 54 Q177 54 174 92 Q147 119 120 152Z" fill="#aab0c2" stroke="#3b435b" stroke-width="7"/><path d="M120 78 L120 151 M120 102 L90 83 M120 102 L151 82" stroke="#59627d" stroke-width="7" stroke-linecap="round"/><path d="M120 151 L104 176 M120 151 L137 176" stroke="#59627d" stroke-width="7" stroke-linecap="round"/></g></g>
+ <rect x="13" y="157" width="214" height="20" rx="10" fill="#16223b" fill-opacity=".82"/>
+ <text x="120" y="171" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="900" letter-spacing="1.4" fill="#fff">TAKE THE L</text>
+ </svg>
