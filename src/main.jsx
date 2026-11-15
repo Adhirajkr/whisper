@@ -70,7 +70,20 @@ function App() {
     loadPeople();
     loadBlocksAndFavorites();
     loadMessages();
-    const heartbeat = () => supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id);
+    const heartbeat = async () => {
+      try {
+        const response = await fetch(import.meta.env.VITE_SUPABASE_URL + '/functions/v1/chaattiko-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ action: 'presence' })
+        });
+        const result = await response.json();
+        if (result.kicked) {
+          setToast('Your session was ended by an administrator.');
+          await supabase.auth.signOut();
+        }
+      } catch { /* A temporary heartbeat failure must not interrupt chat. */ }
+    };
     heartbeat();
     const messagesChannel = supabase.channel('chat-messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
@@ -82,7 +95,19 @@ function App() {
   useEffect(() => {
     if (!session || !profile || !supabase) return;
     const beat = async () => {
-      await supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id);
+      try {
+        const response = await fetch(import.meta.env.VITE_SUPABASE_URL + '/functions/v1/chaattiko-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ action: 'presence' })
+        });
+        const result = await response.json();
+        if (result.kicked) {
+          setToast('Your session was ended by an administrator.');
+          await supabase.auth.signOut();
+          return;
+        }
+      } catch { /* Keep the chat usable if presence is temporarily offline. */ }
       await loadPeople();
     };
     const timer = setInterval(beat, 20000);
