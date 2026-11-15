@@ -29,3 +29,17 @@
 .unblock-btn{border:1px solid #a65a69;background:#432631;color:#ffc4cf;border-radius:8px;padding:6px 8px;font-size:10px;white-space:nowrap}
 .person-open:disabled{opacity:.65;cursor:not-allowed}
 .fav-btn:disabled{opacity:.3;cursor:not-allowed}
+
+/* Presence, profile labels and simple common-room navigation */
+.person-avatar-wrap{position:relative;flex:none;width:33px;height:33px}
+.person-avatar-wrap .avatar{width:33px;height:33px}
+.presence-dot{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:#64748b;border:2px solid #101827}
+.presence-dot.is-online{background:#35d99a;box-shadow:0 0 9px #35d99a99}
+.gender-tag{display:inline-flex;margin-left:6px;padding:2px 5px;border-radius:6px;background:#263b5b;color:#a9c9ff;font-style:normal;font-size:9px;font-weight:600;vertical-align:middle}
+.common-room-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #5279ba66;border-radius:9px;background:#203554;color:#cfe0ff;padding:8px 10px;font-size:10px;font-weight:700;white-space:nowrap}
+.common-room-btn:hover{background:#2b4770}
+.splash-exit{pointer-events:none;animation:welcomeFadeOut .42s cubic-bezier(.2,.8,.2,1) forwards}
+.splash-exit .splash-logo{animation:welcomeLogoOut .42s ease-in forwards}
+@keyframes welcomeFadeOut{0%{opacity:1;transform:scale(1);filter:blur(0)}65%{opacity:.45;transform:scale(1.025);filter:blur(2px)}100%{opacity:0;transform:scale(1.06);filter:blur(9px)}}
+@keyframes welcomeLogoOut{0%{transform:translateY(0) scale(1)}55%{transform:translateY(-12px) scale(1.08)}100%{transform:translateY(-24px) scale(.82)}}
+@media(max-width:760px){.common-room-btn{padding:7px 8px;font-size:9px}.gender-tag{font-size:8px}}
