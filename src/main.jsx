@@ -211,6 +211,17 @@ function App() {
     });
     if (e2) setToast(e2.message); else { setDraft(''); setReply(null); }
   }
+
+  async function sendEmoji(emoji) {
+    if (!profile || !session) return;
+    setEmojiOpen(false);
+    const {error:e} = await supabase.from('messages').insert({
+      user_id:session.user.id, username:profile.username, body:emoji,
+      reply_to:reply?.id || null, conversation_id:conversation || null
+    });
+    if (e) setToast(e.message);
+    else setReply(null);
+  }
   async function openPrivate(person) {
     const {data,error:e} = await supabase.rpc('start_direct_conversation',{other_user:person.id});
     if (e) { setToast(e.message); return; }
@@ -305,7 +316,7 @@ function App() {
           {emojiOpen&&<div className="emoji-picker">
             <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}<button type="button" className={emojiTab==='Memes'?'active':''} onClick={()=>setEmojiTab('Memes')}>Memes</button></div>
             {emojiTab==='Memes'&&<div className="meme-grid">{['67','LOL','LMAO','BRUH','NAH 💀','FR','FR FR','NO WAY','SUS','RIZZ','SKIBIDI','ATE','GOAT','W','L','🗿'].map(word=><button type="button" key={word} onClick={()=>setDraft(d=>(d?d+' ':'')+word)}>{word}</button>)}</div>}
-            {emojiTab!=='Memes'&&<div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>setDraft(d=>d+em)}>{em}</button>)}</div>}
+            {emojiTab!=='Memes'&&<div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>sendEmoji(em)}>{em}</button>)}</div>}
           </div>}
           <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
         </form>}
