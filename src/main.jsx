@@ -231,7 +231,7 @@ function App() {
     q = conversation ? q.eq('conversation_id',conversation) : q.is('conversation_id',null);
     const {data,error:e} = await q;
     if (e) {
-      pendingScrollHeight.current = null;
+      pendingScrollPosition.current = null;
       setToast(e.message);
     } else {
       const older = (data || []).reverse();
@@ -341,6 +341,7 @@ function App() {
     if (result.error) setToast(result.error.message);
     else { loadBlocksAndFavorites(); setConversation(null); setTarget(null); }
   }
+  function returnToPublicRoom() { setTarget(null); setConversation(null); setReply(null); setDraft(''); setSplash(false); }
   function returnToPublicRoom() { setTarget(null); setConversation(null); setReply(null); setDraft(''); setSplash(false); }
   async function react(message,emoji) {
     const {error:e} = await supabase.from('reactions').upsert({message_id:message.id,user_id:session.user.id,emoji},{onConflict:'message_id,user_id'});
