@@ -5,7 +5,7 @@ import { MessageCircle, Users, Shuffle, Heart, LogOut, Send, Shield, Sparkles, M
 import './style.css';
 
 const EMOJIS = ['❤️','😂','🔥','😍','😮','👏'];
-const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.invalid';
+// Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.\nconst aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
 function App() {
   const [session, setSession] = useState(null);
