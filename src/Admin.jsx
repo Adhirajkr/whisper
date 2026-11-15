@@ -36,6 +36,11 @@ export default function Admin() {
     try { await call('set_ban',{userId,banned}); await load(); }
     catch(e){setError(e.message)}
   }
+  async function kickUser(userId) {
+    if(!confirm('End this user session?')) return;
+    try { await call('kick',{userId}); await load(); }
+    catch(e){setError(e.message)}
+  }
   async function deleteMessage(messageId) {
     if(!confirm('Delete this message permanently?')) return;
     try { await call('delete_message',{messageId}); await load(); }
@@ -53,7 +58,7 @@ export default function Admin() {
     <section className="admin-stats"><div><Users/><b>{users.length}</b><span>Registered users</span></div><div><MessageCircle/><b>{messages.length}</b><span>Recent messages</span></div><div><Ban/><b>{users.filter(u=>u.is_banned).length}</b><span>Banned accounts</span></div></section>
     <nav className="admin-tabs">{[['users','Users'],['messages','All messages'],['blocks','Blocks'],['conversations','Private chats'],['audit','Admin activity']].map(([key,label])=><button className={tab===key?'active':''} onClick={()=>setTab(key)} key={key}>{label}</button>)}</nav>
     <div className="admin-search"><Search size={17}/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Search users or messages…"/></div>
-    {tab==='users'&&<section className="admin-table"><h2>Users</h2>{shownUsers.map(u=><article key={u.id}><div><b>{u.username}</b><small>{u.original_name||'No original name'} · {u.gender||'Gender not shared'} · Joined {new Date(u.created_at).toLocaleDateString()}</small><small className="admin-id">{u.id}</small></div><span className={u.is_banned?'status banned':'status'}>{u.is_banned?'Banned':'Active'}</span><button className={u.is_banned?'unban':'ban'} onClick={()=>setBan(u.id,!u.is_banned)}>{u.is_banned?'Unban':'Ban'}</button></article>)}</section>}
+    {tab==='users'&&<section className="admin-table"><h2>Users</h2>{shownUsers.map(u=><article key={u.id}><div><b>{u.username}</b><small>{u.original_name||'No original name'} · {u.gender||'Gender not shared'} · Joined {new Date(u.created_at).toLocaleDateString()}</small><small>IP: {u.last_seen_ip||'Not recorded yet'}</small><small>Device/browser: {u.last_seen_user_agent||'Not recorded yet'}</small><small className="admin-id">{u.id}</small></div><span className={u.is_banned?'status banned':'status'}>{u.is_banned?'Banned':'Active'}</span><button className={u.is_banned?'unban':'ban'} onClick={()=>setBan(u.id,!u.is_banned)}>{u.is_banned?'Unban':'Ban'}</button><button className="ban" onClick={()=>kickUser(u.id)}>Kick</button></article>)}</section>}
     {tab==='messages'&&<section className="admin-table"><h2>Public and private messages</h2>{shownMessages.map(m=><article key={m.id}><div><b>{m.username} <small>{m.conversation_id?'PRIVATE':'PUBLIC'}</small></b><p>{m.body}</p><small>{new Date(m.created_at).toLocaleString()} · expires {new Date(m.expires_at).toLocaleString()}</small></div><button className="ban" onClick={()=>deleteMessage(m.id)}><Trash2 size={15}/> Delete</button></article>)}</section>}
     {tab==='blocks'&&<section className="admin-table"><h2>Blocked relationships</h2>{(data?.blocks||[]).map((b,i)=><article key={i}><div><b>{users.find(u=>u.id===b.blocker_id)?.username||b.blocker_id} blocked {users.find(u=>u.id===b.blocked_id)?.username||b.blocked_id}</b><small>{new Date(b.created_at).toLocaleString()}</small></div></article>)}</section>}
     {tab==='conversations'&&<section className="admin-table"><h2>Private conversations</h2>{(data?.conversations||[]).map(c=><article key={c.id}><div><b>{users.find(u=>u.id===c.created_by)?.username||'Unknown creator'}</b><small>{c.id} · {new Date(c.created_at).toLocaleString()}</small><small>{messages.filter(m=>m.conversation_id===c.id).length} recent messages loaded</small></div></article>)}</section>}
