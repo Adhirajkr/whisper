@@ -35,7 +35,7 @@ Before using the dashboard, open Supabase Dashboard → Edge Functions → Secre
 - `CHAATTIKO_ADMIN_PASSWORD`: choose a long, unique administrator password.
 - `CHAATTIKO_ADMIN_SESSION_SECRET`: generate a random secret of at least 32 bytes.
 
-The function is already deployed to the configured Supabase project. The dashboard supports reviewing users, public/private messages, conversations, blocks, audit activity, banning/unbanning accounts, and deleting individual messages. The dashboard does not collect IP addresses or exact device models yet. Admin review of private messages is disclosed in `terms.html`.
+The function is already deployed to the configured Supabase project. The dashboard supports reviewing users, public/private messages, conversations, blocks, audit activity, banning/unbanning accounts, and deleting individual messages. The dashboard records the connecting IP address and browser/device user-agent at heartbeat time; the user-agent may not identify the exact hardware model. Admin review of private messages is disclosed in `terms.html`.
 
 ## Current interaction fixes
 - Message inserts rely on the database's 24-hour `expires_at` default. The client deliberately does not submit its own expiry timestamp, avoiding millisecond clock skew against the RLS insert policy.
