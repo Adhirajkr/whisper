@@ -77,7 +77,7 @@ function App() {
   const bottomRef = useRef(null);
   const messagesRef = useRef(null);
   const channelRef = useRef(null);
-  const pendingScrollHeight = useRef(null);
+  const pendingScrollPosition = useRef(null);
   const shouldAutoScroll = useRef(true);
   const loadingOlderRef = useRef(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -110,9 +110,9 @@ function App() {
 
   useEffect(() => {
     if (!session || !profile || !supabase) return;
-    loadPeople();
-    loadBlocksAndFavorites();
-    loadMessages();
+    setMessages([]); setReactions([]); setHasMoreMessages(true);
+    pendingScrollPosition.current = null; shouldAutoScroll.current = true;
+    loadPeople(); loadBlocksAndFavorites(); loadMessages(true);
     const heartbeat = async () => {
       try {
         const response = await fetch(import.meta.env.VITE_SUPABASE_URL + '/functions/v1/chaattiko-admin', {
@@ -129,7 +129,7 @@ function App() {
     };
     heartbeat();
     const messagesChannel = supabase.channel('chat-messages')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages(false))
       .subscribe();
     channelRef.current = messagesChannel;
     return () => {
@@ -172,9 +172,10 @@ function App() {
   useLayoutEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
-    if (pendingScrollHeight.current !== null) {
-      el.scrollTop = el.scrollHeight - pendingScrollHeight.current;
-      pendingScrollHeight.current = null;
+    if (pendingScrollPosition.current !== null) {
+      const previous = pendingScrollPosition.current;
+      el.scrollTop = previous.top + (el.scrollHeight - previous.height);
+      pendingScrollPosition.current = null;
     } else if (shouldAutoScroll.current) {
       el.scrollTop = el.scrollHeight;
     }
@@ -195,7 +196,7 @@ function App() {
     ]);
     setBlocked(b || []); setFavorites((f || []).map(x=>x.other_user_id));
   }
-  async function loadMessages() {
+  async function loadMessages(replace = false) {
     if (!session) return;
     const el = messagesRef.current;
     shouldAutoScroll.current = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 120);
@@ -206,9 +207,10 @@ function App() {
       const rows = (data || []).reverse();
       setHasMoreMessages(rows.length === 150);
       setMessages(current => {
+        if (replace) return rows;
         const byId = new Map(current.map(message => [message.id,message]));
         rows.forEach(message => byId.set(message.id,message));
-        return [...byId.values()].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).slice(-600);
+        return [...byId.values()].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
       });
       if (rows.length) {
         const { data: reactionRows } = await supabase.from('reactions').select('message_id,user_id,emoji').in('message_id', rows.map(m => m.id));
@@ -222,7 +224,7 @@ function App() {
     setLoadingOlder(true);
     const oldest = messages[0];
     const el = messagesRef.current;
-    pendingScrollHeight.current = el?.scrollHeight ?? 0;
+    pendingScrollPosition.current = { height: el?.scrollHeight ?? 0, top: el?.scrollTop ?? 0 };
     let q = supabase.from('messages').select('id,user_id,username,body,message_type,reply_to,created_at,conversation_id')
       .gt('expires_at',new Date().toISOString()).lt('created_at',oldest.created_at)
       .order('created_at',{ascending:false}).limit(150);
@@ -247,7 +249,7 @@ function App() {
     const el = messagesRef.current;
     if (!el) return;
     shouldAutoScroll.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (el.scrollTop < 90) loadOlderMessages();
+    if (el.scrollTop < 90 && hasMoreMessages && !loadingOlderRef.current) loadOlderMessages();
   }
   async function authenticate(e) {
     e.preventDefault(); setError('');
@@ -339,6 +341,7 @@ function App() {
     if (result.error) setToast(result.error.message);
     else { loadBlocksAndFavorites(); setConversation(null); setTarget(null); }
   }
+  function returnToPublicRoom() { setTarget(null); setConversation(null); setReply(null); setDraft(''); setSplash(false); }
   async function react(message,emoji) {
     const {error:e} = await supabase.from('reactions').upsert({message_id:message.id,user_id:session.user.id,emoji},{onConflict:'message_id,user_id'});
     if (e) setToast(e.message); else await loadMessages();
@@ -383,7 +386,7 @@ function App() {
         <div className="sidebar-foot"><div className="avatar">{profile.username.slice(0,1).toUpperCase()}</div><div><b>{profile.username}</b><small>You're in the room</small></div><button className="icon-btn" onClick={signOut}><LogOut size={17}/></button></div>
       </aside>
       <section className="chat-panel">
-        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title="Block / unblock"><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
+        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title="Block / unblock"><Ban size={18}/></button>}{target&&<button className="icon-btn" onClick={returnToPublicRoom} title="Back to public room"><MessageCircle size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
         <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>
           {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'pixel-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),650);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
