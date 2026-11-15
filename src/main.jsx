@@ -5,7 +5,8 @@ import { MessageCircle, Users, Shuffle, Heart, LogOut, Send, Shield, Sparkles, M
 import './style.css';
 
 const EMOJIS = ['❤️','😂','🔥','😍','😮','👏'];
-// Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.\nconst aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
+// Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
+const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -107,6 +108,9 @@ function App() {
     try {
       const email = aliasEmail(nickname);
       if (mode === 'signup') {
+        const { data: existing, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', nickname).limit(1);
+        if (lookupError) throw lookupError;
+        if (existing?.length) throw new Error('That nickname is already taken. Please choose another.');
         const {data,error:authError} = await supabase.auth.signUp({email,password,options:{data:{nickname}}});
         if (authError) throw authError;
         if (!data.user) throw new Error('Signup did not return a user.');
@@ -130,8 +134,7 @@ function App() {
     if (!body || !profile) return;
     const {error:e2} = await supabase.from('messages').insert({
       user_id:session.user.id, username:profile.username, body,
-      reply_to:reply?.id || null, conversation_id:conversation || null,
-      expires_at:new Date(Date.now()+86400000).toISOString()
+      reply_to:reply?.id || null, conversation_id:conversation || null
     });
     if (e2) setToast(e2.message); else { setDraft(''); setReply(null); }
   }
