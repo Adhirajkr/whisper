@@ -47,6 +47,9 @@ function App() {
   const [toast, setToast] = useState('');
   const bottomRef = useRef(null);
   const channelRef = useRef(null);
+  const touchStartRef = useRef(null);
+  const longPressRef = useRef(null);
+  const [reactingMessage, setReactingMessage] = useState(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -243,7 +246,9 @@ function App() {
   </main>;
 
   const visiblePeople = [...people].sort((a,b)=>(favorites.includes(b.id)-favorites.includes(a.id)) || (online.includes(b.id)-online.includes(a.id)) || a.username.localeCompare(b.username));
-  const isBlocked = target && blocked.some(b=>(b.blocker_id===session.user.id&&b.blocked_id===target.id)||(b.blocker_id===target.id&&b.blocked_id===session.user.id));
+  const blockedByMe = target && blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===target.id);
+  const blockedByOther = target && blocked.some(b=>b.blocker_id===target.id&&b.blocked_id===session.user.id);
+  const isBlocked = Boolean(blockedByMe || blockedByOther);
   return <main className={dark?'app dark':'app light'}>
     <header className="topbar"><div className="brand"><div className="brand-mini">C</div><span>chaattiko<span className="blue">.</span></span></div><div className="top-actions"><span className="online-pill"><i/> {online.length} online</span><button className="icon-btn" onClick={()=>setDark(!dark)} title="Toggle theme">{dark?<Sun/>:<Moon/>}</button><button className="icon-btn" onClick={signOut} title="Sign out"><LogOut/></button></div></header>
     <div className="workspace">
@@ -257,13 +262,18 @@ function App() {
         <div className="sidebar-foot"><div className="avatar">{profile.username.slice(0,1).toUpperCase()}</div><div><b>{profile.username}</b><small>You're in the room</small></div><button className="icon-btn" onClick={signOut}><LogOut size={17}/></button></div>
       </aside>
       <section className="chat-panel">
-        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title="Block / unblock"><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
+        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&!blockedByOther&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title={blockedByMe?'Unblock user':'Block user'}><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
         <div className="messages">
           {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'pixel-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),650);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
-          {messages.map(m=><div key={m.id} className={m.user_id===session.user.id?'message mine':'message'}>
-            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
+          {messages.map(m=><div key={m.id} className={(m.user_id===session.user.id?'message mine':'message')+(reactingMessage===m.id?' reacting':'')}
+            onTouchStart={e=>{const t=e.touches[0];touchStartRef.current={x:t.clientX,y:t.clientY,id:m.id};longPressRef.current=setTimeout(()=>setReactingMessage(m.id),550);}}
+            onTouchMove={e=>{if(longPressRef.current&&touchStartRef.current){const t=e.touches[0];if(Math.abs(t.clientX-touchStartRef.current.x)>12||Math.abs(t.clientY-touchStartRef.current.y)>12){clearTimeout(longPressRef.current);longPressRef.current=null;}}}}
+            onTouchEnd={e=>{if(longPressRef.current){clearTimeout(longPressRef.current);longPressRef.current=null;}if(touchStartRef.current?.id===m.id){const dx=e.changedTouches[0].clientX-touchStartRef.current.x;if(Math.abs(dx)>65)setReply(m);}touchStartRef.current=null;}}
+            onTouchCancel={()=>{if(longPressRef.current)clearTimeout(longPressRef.current);longPressRef.current=null;touchStartRef.current=null;}}
+            onContextMenu={e=>{e.preventDefault();setReactingMessage(m.id);}}>
+            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{(reactingMessage===m.id?EMOJIS:EMOJIS.slice(0,4)).map(em=><button key={em} onClick={()=>{react(m,em);setReactingMessage(null);}}>{em}</button>)}{reactingMessage===m.id&&<button onClick={()=>setReactingMessage(null)}>×</button>}</div></div>
           </div>)}
           <div ref={bottomRef}/>
         </div>
