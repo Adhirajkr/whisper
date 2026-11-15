@@ -62,7 +62,7 @@ function App() {
     if (!session || !supabase) { setProfile(null); return; }
     let live = true;
     (async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+      const { data } = await supabase.from('profiles').select('id,username,gender,created_at,is_banned,last_seen_at').eq('id', session.user.id).maybeSingle();
       if (live) {
         setProfile(data);
         if (!data) setError('Your profile is missing. Please sign out and create your account again.');
