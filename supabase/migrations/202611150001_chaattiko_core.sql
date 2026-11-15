@@ -187,3 +187,16 @@ create policy "Chaattiko read conversation membership" on public.conversation_me
 for select to authenticated using (user_id=(select auth.uid()) or private.is_conversation_member(conversation_id));
 create policy "Chaattiko read visible messages" on public.messages
 for select to authenticated using (expires_at>now() and (conversation_id is null or private.is_conversation_member(conversation_id)));
+
+-- Check conversation ownership without recursive SELECT-policy evaluation.
+create or replace function private.is_conversation_creator(target_conversation uuid)
+returns boolean language sql stable security definer set search_path=public,auth as $$
+  select auth.uid() is not null and exists (
+    select 1 from public.conversations c where c.id=target_conversation and c.created_by=auth.uid()
+  );
+$$;
+revoke all on function private.is_conversation_creator(uuid) from public,anon;
+grant execute on function private.is_conversation_creator(uuid) to authenticated;
+drop policy if exists "Chaattiko creator adds members" on public.conversation_members;
+create policy "Chaattiko creator adds members" on public.conversation_members
+for insert to authenticated with check (private.is_conversation_creator(conversation_id));
