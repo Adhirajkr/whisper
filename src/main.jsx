@@ -28,7 +28,8 @@ function App() {
   const [age, setAge] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [messages, setMessages] = useState([]);\n  const [reactions, setReactions] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [reactions, setReactions] = useState([]);
   const [people, setPeople] = useState([]);
   const [online, setOnline] = useState([]);
   const [target, setTarget] = useState(null);
