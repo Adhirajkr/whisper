@@ -92,8 +92,8 @@ function App() {
     const messagesChannel = supabase.channel('chat-messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
       .subscribe();
-    channelRef.current = { presence, messagesChannel };
-    return () => { supabase.removeChannel(presence); supabase.removeChannel(messagesChannel); };
+    channelRef.current = messagesChannel;
+    return () => { supabase.removeChannel(messagesChannel); channelRef.current = null; };
   }, [session, profile, conversation]);
 
   useEffect(() => {
@@ -102,7 +102,7 @@ function App() {
       try {
         const response = await fetch(import.meta.env.VITE_SUPABASE_URL + '/functions/v1/chaattiko-admin', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: 'Bearer ' + session.access_token },
           body: JSON.stringify({ action: 'presence' })
         });
         const result = await response.json();
