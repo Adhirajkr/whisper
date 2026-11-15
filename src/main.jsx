@@ -162,9 +162,9 @@ function App() {
     try {
       const email = aliasEmail(nickname);
       if (mode === 'signup') {
-        const { data: existing, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', nickname).limit(1);
-        if (lookupError) throw lookupError;
-        if (existing?.length) throw new Error('That nickname is already taken. Please choose another.');
+        // Do not query profiles before authentication: anonymous users intentionally
+        // have no access to this table. The unique lower(username) index is the
+        // authoritative duplicate check during the authenticated profile insert.
         const {data,error:authError} = await supabase.auth.signUp({email,password,options:{data:{nickname}}});
         if (authError) throw authError;
         if (!data.user) throw new Error('Signup did not return a user.');
@@ -178,7 +178,14 @@ function App() {
         const {error:authError} = await supabase.auth.signInWithPassword({email,password});
         if (authError) throw authError;
       }
-    } catch (e) { setError(e.message || 'Unable to sign in.'); }
+    } catch (e) {
+      const message = e.message || 'Unable to sign in.';
+      if (/profiles_username|duplicate key|unique constraint/i.test(message)) {
+        setError('That nickname is already taken. Please choose another.');
+      } else {
+        setError(message);
+      }
+    }
     finally { setBusy(false); }
   }
 
