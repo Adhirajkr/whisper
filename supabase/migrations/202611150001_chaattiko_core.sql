@@ -25,8 +25,10 @@ create table if not exists public.conversation_members (
   joined_at timestamptz not null default now(),
   primary key (conversation_id,user_id)
 );
-alter table public.messages add constraint messages_conversation_id_fkey
-  foreign key (conversation_id) references public.conversations(id) on delete cascade;
+do $ begin
+  alter table public.messages add constraint messages_conversation_id_fkey
+    foreign key (conversation_id) references public.conversations(id) on delete cascade;
+exception when duplicate_object then null; end $;
 
 create table if not exists public.blocks (
   blocker_id uuid not null references auth.users(id) on delete cascade,
@@ -149,3 +151,27 @@ grant execute on function public.start_direct_conversation(uuid) to authenticate
 do $$ begin
  alter publication supabase_realtime add table public.messages;
 exception when duplicate_object then null; when undefined_object then null; end $$;
+
+-- Avoid recursive RLS evaluation when checking membership in conversation_members.
+create schema if not exists private;
+revoke all on schema private from public,anon;
+grant usage on schema private to authenticated;
+create or replace function private.is_conversation_member(target_conversation uuid)
+returns boolean language sql stable security definer set search_path=public,auth as $$
+  select auth.uid() is not null and exists (
+    select 1 from public.conversation_members cm
+    where cm.conversation_id=target_conversation and cm.user_id=auth.uid()
+  );
+$$;
+revoke all on function private.is_conversation_member(uuid) from public,anon;
+grant execute on function private.is_conversation_member(uuid) to authenticated;
+
+drop policy if exists "Chaattiko read member conversations" on public.conversations;
+drop policy if exists "Chaattiko read conversation membership" on public.conversation_members;
+drop policy if exists "Chaattiko read visible messages" on public.messages;
+create policy "Chaattiko read member conversations" on public.conversations
+for select to authenticated using (private.is_conversation_member(id));
+create policy "Chaattiko read conversation membership" on public.conversation_members
+for select to authenticated using (user_id=(select auth.uid()) or private.is_conversation_member(conversation_id));
+create policy "Chaattiko read visible messages" on public.messages
+for select to authenticated using (expires_at>now() and (conversation_id is null or private.is_conversation_member(conversation_id)));
