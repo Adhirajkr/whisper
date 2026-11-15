@@ -16,3 +16,7 @@
 @keyframes pixelPieces{0%{transform:scale(1);opacity:1}45%{transform:translate(8px,-9px) scale(.96);opacity:.8}100%{transform:translate(22px,-28px) scale(.55);opacity:0;filter:blur(5px)}}
 .message{animation:messageEnter .22s ease-out both}
 @keyframes messageEnter{from{opacity:0;transform:translateY(7px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.reaction-counts{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.reaction-counts span{border:1px solid #ffffff1c;background:#18263b;border-radius:20px;padding:3px 8px;font-size:11px;color:#dce8ff}
+.light .reaction-counts span{background:#edf2fa;border-color:#dbe4f2;color:#273955}
