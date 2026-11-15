@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, supabaseReady } from './supabase';
 import { MessageCircle, Users, Shuffle, Heart, LogOut, Send, Shield, Sparkles, Menu, X, Smile, Moon, Sun, Reply, Ban } from 'lucide-react';
@@ -75,7 +75,13 @@ function App() {
   const [dark, setDark] = useState(true);
   const [toast, setToast] = useState('');
   const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
   const channelRef = useRef(null);
+  const pendingScrollHeight = useRef(null);
+  const shouldAutoScroll = useRef(true);
+  const loadingOlderRef = useRef(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
 
   useEffect(() => {
     if (!supabase) return;
@@ -163,7 +169,16 @@ function App() {
     return () => clearTimeout(timer);
   }, [session, profile, target, splash]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useLayoutEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    if (pendingScrollHeight.current !== null) {
+      el.scrollTop = el.scrollHeight - pendingScrollHeight.current;
+      pendingScrollHeight.current = null;
+    } else if (shouldAutoScroll.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages]);
 
   async function loadPeople() {
     const { data, error: peopleError } = await supabase.from('profiles').select('id,username,gender,last_seen_at,is_banned').neq('id', session.user.id).eq('is_banned', false).order('username');
@@ -182,17 +197,57 @@ function App() {
   }
   async function loadMessages() {
     if (!session) return;
-    let q = supabase.from('messages').select('id,user_id,username,body,message_type,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:true}).limit(150);
+    const el = messagesRef.current;
+    shouldAutoScroll.current = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+    let q = supabase.from('messages').select('id,user_id,username,body,message_type,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(150);
     q = conversation ? q.eq('conversation_id',conversation) : q.is('conversation_id',null);
     const {data,error:e} = await q;
     if (!e) {
-      const rows = data || [];
-      setMessages(rows);
+      const rows = (data || []).reverse();
+      setHasMoreMessages(rows.length === 150);
+      setMessages(current => {
+        const byId = new Map(current.map(message => [message.id,message]));
+        rows.forEach(message => byId.set(message.id,message));
+        return [...byId.values()].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).slice(-600);
+      });
       if (rows.length) {
         const { data: reactionRows } = await supabase.from('reactions').select('message_id,user_id,emoji').in('message_id', rows.map(m => m.id));
-        setReactions(reactionRows || []);
-      } else setReactions([]);
+        setReactions(current => [...current.filter(r=>!rows.some(m=>m.id===r.message_id)),...(reactionRows || [])]);
+      }
+    } else setToast(e.message);
+  }
+  async function loadOlderMessages() {
+    if (!session || !messages.length || !hasMoreMessages || loadingOlderRef.current) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    const oldest = messages[0];
+    const el = messagesRef.current;
+    pendingScrollHeight.current = el?.scrollHeight ?? 0;
+    let q = supabase.from('messages').select('id,user_id,username,body,message_type,reply_to,created_at,conversation_id')
+      .gt('expires_at',new Date().toISOString()).lt('created_at',oldest.created_at)
+      .order('created_at',{ascending:false}).limit(150);
+    q = conversation ? q.eq('conversation_id',conversation) : q.is('conversation_id',null);
+    const {data,error:e} = await q;
+    if (e) {
+      pendingScrollHeight.current = null;
+      setToast(e.message);
+    } else {
+      const older = (data || []).reverse();
+      setHasMoreMessages(older.length === 150);
+      if (older.length) {
+        setMessages(current => [...older,...current]);
+        const {data: reactionRows} = await supabase.from('reactions').select('message_id,user_id,emoji').in('message_id',older.map(m=>m.id));
+        setReactions(current => [...current,...(reactionRows || [])]);
+      } else pendingScrollHeight.current = null;
     }
+    loadingOlderRef.current = false;
+    setLoadingOlder(false);
+  }
+  function handleMessagesScroll() {
+    const el = messagesRef.current;
+    if (!el) return;
+    shouldAutoScroll.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (el.scrollTop < 90) loadOlderMessages();
   }
   async function authenticate(e) {
     e.preventDefault(); setError('');
@@ -322,17 +377,18 @@ function App() {
         <div className="panel-heading"><div><span className="eyebrow">YOUR SPACE</span><h2>People <span>{people.length}</span></h2></div><button className="icon-btn mobile-close" onClick={()=>setShowPeople(false)}><X/></button></div>
         <button className="random-card" onClick={randomChat}><div className="random-icon"><Shuffle/></div><div><b>Random chat</b><small>Meet someone new</small></div><span>↗</span></button>
         <div className="people-label">ONLINE NOW <span>{online.length}</span></div>
-        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)}/>)}
+        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} online={online.includes(p.id)} active={target?.id===p.id} fav={favorites.includes(p.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)}/>)}
         <div className="people-label">ALL PEOPLE <span>{people.length}</span></div>
         {visiblePeople.filter(p=>!online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)}/>)}
         <div className="sidebar-foot"><div className="avatar">{profile.username.slice(0,1).toUpperCase()}</div><div><b>{profile.username}</b><small>You're in the room</small></div><button className="icon-btn" onClick={signOut}><LogOut size={17}/></button></div>
       </aside>
       <section className="chat-panel">
         <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title="Block / unblock"><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
-        <div className="messages">
+        <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>
           {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'pixel-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),650);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
+          {loadingOlder&&<div className="older-loading">Loading older messages…</div>}
           {messages.map(m=><div key={m.id} className={m.user_id===session.user.id?'message mine':'message'}>
             <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className={m.body?.startsWith('[[chaattiko:') ? "bubble sticker-bubble" : "bubble"}><StickerMessage body={m.body}/></div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
           </div>)}
@@ -357,8 +413,9 @@ function App() {
   </main>;
 }
 
-function Person({p,active,fav,onOpen,onFav}) {
-  return <div className={'person '+(active?'selected':'')}><button className="person-open" onClick={onOpen}><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><span><b>{p.username}</b><small>{p.last_seen_at?'Member':'New here'}</small></span></button><button className={'fav-btn '+(fav?'saved':'')} onClick={onFav}><Heart size={15} fill={fav?'currentColor':'none'}/></button></div>;
+function Person({p,online,active,fav,onOpen,onFav}) {
+  const genderLabel = p.gender === 'man' ? 'Man' : p.gender === 'woman' ? 'Woman' : '';
+  return <div className={'person '+(active?'selected':'')}><button className="person-open" onClick={onOpen}><div className="avatar-wrap"><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><i className={'presence-dot '+(online?'online':'offline')} title={online?'Online':'Offline'}/></div><span><b>{p.username}</b><small>{genderLabel&&<em className="gender-tag">{genderLabel}</em>}<em className="presence-label">{online?'Online':'Offline'}</em></small></span></button><button className={'fav-btn '+(fav?'saved':'')} onClick={onFav}><Heart size={15} fill={fav?'currentColor':'none'}/></button></div>;
 }
 
 createRoot(document.getElementById('root')).render(window.location.pathname === '/admin' ? <Admin/> : <App/>);
