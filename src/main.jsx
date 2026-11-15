@@ -28,7 +28,7 @@ function App() {
   const [age, setAge] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([]);\n  const [reactions, setReactions] = useState([]);
   const [people, setPeople] = useState([]);
   const [online, setOnline] = useState([]);
   const [target, setTarget] = useState(null);
@@ -136,7 +136,14 @@ function App() {
     let q = supabase.from('messages').select('id,user_id,username,body,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:true}).limit(150);
     q = conversation ? q.eq('conversation_id',conversation) : q.is('conversation_id',null);
     const {data,error:e} = await q;
-    if (!e) setMessages(data || []);
+    if (!e) {
+      const rows = data || [];
+      setMessages(rows);
+      if (rows.length) {
+        const { data: reactionRows } = await supabase.from('reactions').select('message_id,user_id,emoji').in('message_id', rows.map(m => m.id));
+        setReactions(reactionRows || []);
+      } else setReactions([]);
+    }
   }
   async function authenticate(e) {
     e.preventDefault(); setError('');
@@ -204,7 +211,7 @@ function App() {
   }
   async function react(message,emoji) {
     const {error:e} = await supabase.from('reactions').upsert({message_id:message.id,user_id:session.user.id,emoji},{onConflict:'message_id,user_id'});
-    if (e) setToast(e.message);
+    if (e) setToast(e.message); else await loadMessages();
   }
   async function signOut() { await supabase.auth.signOut(); setProfile(null); setTarget(null); setConversation(null); }
 
@@ -252,7 +259,7 @@ function App() {
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
           {messages.map(m=><div key={m.id} className={m.user_id===session.user.id?'message mine':'message'}>
-            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div><div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
+            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
           </div>)}
           <div ref={bottomRef}/>
         </div>
