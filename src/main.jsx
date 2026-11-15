@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, supabaseReady } from './supabase';
 import { MessageCircle, Users, Shuffle, Heart, LogOut, Send, Shield, Sparkles, Menu, X, Smile, Moon, Sun, Reply, Ban } from 'lucide-react';
-import './style.css';
+import './style.css';\nimport Admin from './Admin';
 
 const EMOJI_CATEGORIES = [
   { name: 'Trending', items: ['😭','💀','🫠','✨','🫶','🤌','🥹','😩','🗿','👀','🤡','😎','🔥','💅','🧿','🫡'] },
@@ -251,4 +251,4 @@ function Person({p,active,fav,onOpen,onFav}) {
   return <div className={'person '+(active?'selected':'')}><button className="person-open" onClick={onOpen}><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><span><b>{p.username}</b><small>{p.last_seen_at?'Member':'New here'}</small></span></button><button className={'fav-btn '+(fav?'saved':'')} onClick={onFav}><Heart size={15} fill={fav?'currentColor':'none'}/></button></div>;
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(window.location.pathname === '/admin' ? <Admin/> : <App/>);
