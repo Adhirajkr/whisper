@@ -20,3 +20,8 @@
 .reaction-counts{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .reaction-counts span{border:1px solid #ffffff1c;background:#18263b;border-radius:20px;padding:3px 8px;font-size:11px;color:#dce8ff}
 .light .reaction-counts span{background:#edf2fa;border-color:#dbe4f2;color:#273955}
+
+.message{touch-action:pan-y}
+.message.reacting .message-tools{opacity:1}
+.message-tools button{touch-action:manipulation}
+.emoji-grid button:focus-visible,.message-tools button:focus-visible{outline:2px solid #79aaff;outline-offset:2px}
