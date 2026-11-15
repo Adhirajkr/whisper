@@ -13,6 +13,17 @@ const EMOJI_CATEGORIES = [
   { name: 'Fun', items: ['🔥','✨','💯','🎉','🥳','👑','💎','🌈','⭐','⚡','🍿','🧋','🦋','🐸'] }
 ];
 const EMOJIS = ['❤️','😂','🔥','😍','😭','💀','🫶','✨','👀','🥹','🤌','🗿'];
+const STICKERS = [
+  {id:'laugh',label:'Laughing',art:'😂'},
+  {id:'cry',label:'Crying',art:'😭'},
+  {id:'skull',label:'Dead laughing',art:'💀'},
+  {id:'shock',label:'Shocked',art:'😱'},
+  {id:'love',label:'Love',art:'🥰'},
+  {id:'clown',label:'Clown moment',art:'🤡'},
+  {id:'fire',label:'Fire',art:'🔥'},
+  {id:'dance',label:'Party',art:'🥳'}
+];
+
 // Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
 const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
@@ -222,6 +233,17 @@ function App() {
     if (e) setToast(e.message);
     else setReply(null);
   }
+
+  async function sendSticker(stickerId) {
+    if (!profile || !session) return;
+    setEmojiOpen(false);
+    const {error:e} = await supabase.from('messages').insert({
+      user_id:session.user.id, username:profile.username, body:`[[chaattiko-sticker:${stickerId}]]`,
+      reply_to:reply?.id || null, conversation_id:conversation || null
+    });
+    if (e) setToast(e.message);
+    else setReply(null);
+  }
   async function openPrivate(person) {
     const {data,error:e} = await supabase.rpc('start_direct_conversation',{other_user:person.id});
     if (e) { setToast(e.message); return; }
@@ -305,7 +327,7 @@ function App() {
             onTouchEnd={e=>{if(longPressRef.current){clearTimeout(longPressRef.current);longPressRef.current=null;}if(touchStartRef.current?.id===m.id){const dx=e.changedTouches[0].clientX-touchStartRef.current.x;if(Math.abs(dx)>65)setReply(m);}touchStartRef.current=null;}}
             onTouchCancel={()=>{if(longPressRef.current)clearTimeout(longPressRef.current);longPressRef.current=null;touchStartRef.current=null;}}
             onContextMenu={e=>{e.preventDefault();setReactingMessage(m.id);}}>
-            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{(reactingMessage===m.id?EMOJIS:EMOJIS.slice(0,4)).map(em=><button key={em} onClick={()=>{react(m,em);setReactingMessage(null);}}>{em}</button>)}{reactingMessage===m.id&&<button onClick={()=>setReactingMessage(null)}>×</button>}</div></div>
+            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className={m.body.startsWith('[[chaattiko-sticker:')&&m.body.endsWith(']]')?'bubble sticker-bubble':'bubble'}>{m.body.startsWith('[[chaattiko-sticker:')&&m.body.endsWith(']]')?<StickerMessage body={m.body}/>:m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{(reactingMessage===m.id?EMOJIS:EMOJIS.slice(0,4)).map(em=><button key={em} onClick={()=>{react(m,em);setReactingMessage(null);}}>{em}</button>)}{reactingMessage===m.id&&<button onClick={()=>setReactingMessage(null)}>×</button>}</div></div>
           </div>)}
           <div ref={bottomRef}/>
         </div>
@@ -315,7 +337,7 @@ function App() {
           <button className="emoji-btn" type="button" aria-label="Open emoji picker" onClick={()=>setEmojiOpen(v=>!v)}><Smile/></button>
           {emojiOpen&&<div className="emoji-picker">
             <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}<button type="button" className={emojiTab==='Memes'?'active':''} onClick={()=>setEmojiTab('Memes')}>Memes</button></div>
-            {emojiTab==='Memes'&&<div className="meme-grid">{['67','LOL','LMAO','BRUH','NAH 💀','FR','FR FR','NO WAY','SUS','RIZZ','SKIBIDI','ATE','GOAT','W','L','🗿'].map(word=><button type="button" key={word} onClick={()=>setDraft(d=>(d?d+' ':'')+word)}>{word}</button>)}</div>}
+            {emojiTab==='Memes'&&<div className="meme-grid">{STICKERS.map(sticker=><button type="button" className="sticker-choice" key={sticker.id} aria-label={sticker.label} title={sticker.label} onClick={()=>sendSticker(sticker.id)}><StickerArtwork id={sticker.id}/></button>)}</div>}
             {emojiTab!=='Memes'&&<div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>sendEmoji(em)}>{em}</button>)}</div>}
           </div>}
           <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
@@ -339,3 +361,15 @@ function Person({p,online,active,fav,blockedByMe,blockedByOther,onOpen,onFav,onU
 }
 
 createRoot(document.getElementById('root')).render(window.location.pathname === '/admin' ? <Admin/> : <App/>);
+
+function StickerArtwork({id}) {
+  const sticker=STICKERS.find(item=>item.id===id)||STICKERS[0];
+  return <span className={`sticker-art sticker-${sticker.id}`} aria-hidden="true"><span>{sticker.art}</span><i/><i/><i/></span>;
+}
+
+function StickerMessage({body}) {
+  const id=body.slice('[[chaattiko-sticker:'.length,-2);
+  const sticker=STICKERS.find(item=>item.id===id);
+  if(!sticker) return null;
+  return <div className={`chat-sticker sticker-${sticker.id}`} role="img" aria-label={sticker.label}><StickerArtwork id={sticker.id}/></div>;
+}
