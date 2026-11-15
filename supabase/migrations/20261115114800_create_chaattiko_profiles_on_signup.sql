@@ -1,11 +1,14 @@
--- Keep Auth users and Chaattiko profiles in one database transaction.
--- If profile creation fails, the Auth signup fails too; no orphan Auth user remains.
+-- Create Chaattiko profiles atomically with Auth signup.
+-- Keep the SECURITY DEFINER trigger function outside the exposed public schema.
 
-create or replace function public.handle_new_chaattiko_user()
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+
+create or replace function private.handle_new_chaattiko_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   requested_username text;
@@ -39,7 +42,10 @@ begin
 end;
 $$;
 
+revoke all on function private.handle_new_chaattiko_user() from public, anon, authenticated;
 drop trigger if exists on_auth_user_created_chaattiko on auth.users;
 create trigger on_auth_user_created_chaattiko
   after insert on auth.users
-  for each row execute function public.handle_new_chaattiko_user();
+  for each row execute function private.handle_new_chaattiko_user();
+
+drop function if exists public.handle_new_chaattiko_user();
