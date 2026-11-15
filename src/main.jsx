@@ -94,6 +94,7 @@ function App() {
     heartbeat();
     const messagesChannel = supabase.channel('chat-messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, () => loadMessages())
       .subscribe();
     channelRef.current = messagesChannel;
     return () => { supabase.removeChannel(messagesChannel); channelRef.current = null; };
