@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase, supabaseReady } from './supabase';
 import { MessageCircle, Users, Shuffle, Heart, LogOut, Send, Shield, Sparkles, Menu, X, Smile, Moon, Sun, Reply, Ban } from 'lucide-react';
-import './style.css';\nimport Admin from './Admin';
+import './style.css';
+import Admin from './Admin';
 
 const EMOJI_CATEGORIES = [
   { name: 'Trending', items: ['😭','💀','🫠','✨','🫶','🤌','🥹','😩','🗿','👀','🤡','😎','🔥','💅','🧿','🫡'] },
