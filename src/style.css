@@ -110,3 +110,15 @@
   .meme-picker-card>img { height: 78px; }
   .sent-meme-sticker { width: min(166px, 52vw); }
 }
+
+/* Presence and gender labels in the people list */
+.avatar-wrap{position:relative;flex:none;width:33px;height:33px}
+.avatar-wrap .avatar{width:33px;height:33px}
+.presence-dot{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border:2px solid #101a2b;border-radius:50%;background:#64748b}
+.presence-dot.online{background:#22c55e;box-shadow:0 0 8px #22c55e88}
+.presence-dot.offline{background:#64748b}
+.person-open span small{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.gender-tag,.presence-label{font-style:normal;font-size:9px;line-height:1.5;border-radius:5px;padding:1px 5px}
+.gender-tag{color:#b9c9f4;background:#526fa52b;border:1px solid #6f8fc34a}
+.presence-label{color:#86a0c2;background:#7180961c}
+.older-loading{text-align:center;color:#8da2c2;font-size:11px;padding:5px}
