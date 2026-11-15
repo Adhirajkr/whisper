@@ -3,9 +3,18 @@ import { createRoot } from 'react-dom/client';
 import { supabase, supabaseReady } from './supabase';
 import { MessageCircle, Users, Shuffle, Heart, LogOut, Send, Shield, Sparkles, Menu, X, Smile, Moon, Sun, Reply, Ban } from 'lucide-react';
 import './style.css';
+import Admin from './Admin';
 
-const EMOJIS = ['❤️','😂','🔥','😍','😮','👏'];
-const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.invalid';
+const EMOJI_CATEGORIES = [
+  { name: 'Trending', items: ['😭','💀','🫠','✨','🫶','🤌','🥹','😩','🗿','👀','🤡','😎','🔥','💅','🧿','🫡'] },
+  { name: 'Faces', items: ['😀','😂','🤣','🥲','🥹','😊','😍','🥰','😘','😜','🤪','🤔','😴','😭','😤','🤯','🫠','💀'] },
+  { name: 'Gestures', items: ['👋','🫶','👏','🙌','🤝','🙏','👍','👎','🤌','✌️','🤟','🫰','💅','🫡'] },
+  { name: 'Hearts', items: ['❤️','🩷','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','💕','💞','💘'] },
+  { name: 'Fun', items: ['🔥','✨','💯','🎉','🥳','👑','💎','🌈','⭐','⚡','🍿','🧋','🦋','🐸'] }
+];
+const EMOJIS = ['❤️','😂','🔥','😍','😭','💀','🫶','✨','👀','🥹','🤌','🗿'];
+// Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
+const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -20,6 +29,7 @@ function App() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [reactions, setReactions] = useState([]);
   const [people, setPeople] = useState([]);
   const [online, setOnline] = useState([]);
   const [target, setTarget] = useState(null);
@@ -30,6 +40,9 @@ function App() {
   const [blocked, setBlocked] = useState([]);
   const [showPeople, setShowPeople] = useState(false);
   const [splash, setSplash] = useState(true);
+  const [splashExiting, setSplashExiting] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiTab, setEmojiTab] = useState('Trending');
   const [dark, setDark] = useState(true);
   const [toast, setToast] = useState('');
   const bottomRef = useRef(null);
@@ -61,16 +74,21 @@ function App() {
     loadPeople();
     loadBlocksAndFavorites();
     loadMessages();
-    const presence = supabase.channel('chaattiko-presence', { config: { presence: { key: session.user.id } } });
-    presence.on('presence', { event: 'sync' }, () => {
-      const state = presence.presenceState();
-      setOnline(Object.keys(state));
-    }).subscribe(async status => {
-      if (status === 'SUBSCRIBED') {
-        await presence.track({ username: profile.username, online_at: new Date().toISOString() });
-        await supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', session.user.id);
-      }
-    });
+    const heartbeat = async () => {
+      try {
+        const response = await fetch(import.meta.env.VITE_SUPABASE_URL + '/functions/v1/chaattiko-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ action: 'presence' })
+        });
+        const result = await response.json();
+        if (result.kicked) {
+          setToast('Your session was ended by an administrator.');
+          await supabase.auth.signOut();
+        }
+      } catch { /* A temporary heartbeat failure must not interrupt chat. */ }
+    };
+    heartbeat();
     const messagesChannel = supabase.channel('chat-messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
       .subscribe();
@@ -78,11 +96,37 @@ function App() {
     return () => { supabase.removeChannel(presence); supabase.removeChannel(messagesChannel); };
   }, [session, profile, conversation]);
 
+  useEffect(() => {
+    if (!session || !profile || !supabase) return;
+    const beat = async () => {
+      try {
+        const response = await fetch(import.meta.env.VITE_SUPABASE_URL + '/functions/v1/chaattiko-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ action: 'presence' })
+        });
+        const result = await response.json();
+        if (result.kicked) {
+          setToast('Your session was ended by an administrator.');
+          await supabase.auth.signOut();
+          return;
+        }
+      } catch { /* Keep the chat usable if presence is temporarily offline. */ }
+      await loadPeople();
+    };
+    const timer = setInterval(beat, 20000);
+    return () => clearInterval(timer);
+  }, [session?.user?.id, profile?.id]);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   async function loadPeople() {
-    const { data } = await supabase.from('profiles').select('id,username,gender,last_seen_at,is_banned').neq('id', session.user.id).eq('is_banned', false).order('username');
-    setPeople(data || []);
+    const { data, error: peopleError } = await supabase.from('profiles').select('id,username,gender,last_seen_at,is_banned').neq('id', session.user.id).eq('is_banned', false).order('username');
+    if (peopleError) { setToast(peopleError.message); return; }
+    const rows = data || [];
+    setPeople(rows);
+    const cutoff = Date.now() - 90000;
+    setOnline(rows.filter(p => p.last_seen_at && Date.parse(p.last_seen_at) >= cutoff).map(p => p.id));
   }
   async function loadBlocksAndFavorites() {
     const [{data:b},{data:f}] = await Promise.all([
@@ -96,7 +140,14 @@ function App() {
     let q = supabase.from('messages').select('id,user_id,username,body,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:true}).limit(150);
     q = conversation ? q.eq('conversation_id',conversation) : q.is('conversation_id',null);
     const {data,error:e} = await q;
-    if (!e) setMessages(data || []);
+    if (!e) {
+      const rows = data || [];
+      setMessages(rows);
+      if (rows.length) {
+        const { data: reactionRows } = await supabase.from('reactions').select('message_id,user_id,emoji').in('message_id', rows.map(m => m.id));
+        setReactions(reactionRows || []);
+      } else setReactions([]);
+    }
   }
   async function authenticate(e) {
     e.preventDefault(); setError('');
@@ -107,6 +158,9 @@ function App() {
     try {
       const email = aliasEmail(nickname);
       if (mode === 'signup') {
+        const { data: existing, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', nickname).limit(1);
+        if (lookupError) throw lookupError;
+        if (existing?.length) throw new Error('That nickname is already taken. Please choose another.');
         const {data,error:authError} = await supabase.auth.signUp({email,password,options:{data:{nickname}}});
         if (authError) throw authError;
         if (!data.user) throw new Error('Signup did not return a user.');
@@ -130,8 +184,7 @@ function App() {
     if (!body || !profile) return;
     const {error:e2} = await supabase.from('messages').insert({
       user_id:session.user.id, username:profile.username, body,
-      reply_to:reply?.id || null, conversation_id:conversation || null,
-      expires_at:new Date(Date.now()+86400000).toISOString()
+      reply_to:reply?.id || null, conversation_id:conversation || null
     });
     if (e2) setToast(e2.message); else { setDraft(''); setReply(null); }
   }
@@ -162,7 +215,7 @@ function App() {
   }
   async function react(message,emoji) {
     const {error:e} = await supabase.from('reactions').upsert({message_id:message.id,user_id:session.user.id,emoji},{onConflict:'message_id,user_id'});
-    if (e) setToast(e.message);
+    if (e) setToast(e.message); else await loadMessages();
   }
   async function signOut() { await supabase.auth.signOut(); setProfile(null); setTarget(null); setConversation(null); }
 
@@ -206,18 +259,23 @@ function App() {
       <section className="chat-panel">
         <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title="Block / unblock"><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
         <div className="messages">
-          {!target&&splash&&<div className="welcome-splash" onClick={()=>setSplash(false)}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
+          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'pixel-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),650);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
           {messages.map(m=><div key={m.id} className={m.user_id===session.user.id?'message mine':'message'}>
-            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div><div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
+            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
           </div>)}
           <div ref={bottomRef}/>
         </div>
         {isBlocked?<div className="blocked-note">This conversation is blocked. Only the person who created the block can unblock it.</div>:<form className="composer" onSubmit={sendMessage}>
           {reply&&<div className="replying"><span>Replying to {reply.username}</span><button type="button" onClick={()=>setReply(null)}>×</button></div>}
           <input value={draft} onChange={e=>setDraft(e.target.value)} placeholder={target?'Message privately…':'Send a message to everyone…'} maxLength="2000"/>
-          <button className="emoji-btn" type="button" onClick={()=>setDraft(d=>d+' 😊')}><Smile/></button><button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
+          <button className="emoji-btn" type="button" aria-label="Open emoji picker" onClick={()=>setEmojiOpen(v=>!v)}><Smile/></button>
+          {emojiOpen&&<div className="emoji-picker">
+            <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}</div>
+            <div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>setDraft(d=>d+em)}>{em}</button>)}</div>
+          </div>}
+          <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
         </form>}
       </section>
     </div>
@@ -230,4 +288,4 @@ function Person({p,active,fav,onOpen,onFav}) {
   return <div className={'person '+(active?'selected':'')}><button className="person-open" onClick={onOpen}><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><span><b>{p.username}</b><small>{p.last_seen_at?'Member':'New here'}</small></span></button><button className={'fav-btn '+(fav?'saved':'')} onClick={onFav}><Heart size={15} fill={fav?'currentColor':'none'}/></button></div>;
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(window.location.pathname === '/admin' ? <Admin/> : <App/>);

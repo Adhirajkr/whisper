@@ -26,3 +26,19 @@ Import `Adhirajkr/whisper` in Vercel, select branch `chaattiko-vercel-supabase` 
 
 ## Security and completion status
 This branch is an integration prototype, not a finished public launch. Admin review/moderation APIs, secure admin authentication, ban/kick enforcement, full private-chat membership checks, reliable presence, random pairing, reaction uniqueness, message expiry cleanup, and end-to-end security tests remain to be implemented and verified. Do not expose a Supabase service-role key in the browser. Admin access to private conversations must be implemented server-side and disclosed in the Terms & Conditions before enabling it.
+
+
+## Chaattiko administrator dashboard
+The admin page is available at `/admin`. Its data and moderation operations are handled by the Supabase Edge Function `chaattiko-admin`; the service-role key is used only inside the Edge Function and must never be added to Vercel browser environment variables.
+
+Before using the dashboard, open Supabase Dashboard → Edge Functions → Secrets and add:
+- `CHAATTIKO_ADMIN_PASSWORD`: choose a long, unique administrator password.
+- `CHAATTIKO_ADMIN_SESSION_SECRET`: generate a random secret of at least 32 bytes.
+
+The function is already deployed to the configured Supabase project. The dashboard supports reviewing users, public/private messages, conversations, blocks, audit activity, banning/unbanning accounts, and deleting individual messages. The dashboard records the connecting IP address and browser/device user-agent at heartbeat time; the user-agent may not identify the exact hardware model. Admin review of private messages is disclosed in `terms.html`.
+
+## Current interaction fixes
+- Message inserts rely on the database's 24-hour `expires_at` default. The client deliberately does not submit its own expiry timestamp, avoiding millisecond clock skew against the RLS insert policy.
+- Online status is refreshed using a last-seen heartbeat. A user only appears in the people list after they have created an account; random chat requires at least one other person to be online.
+- The composer includes a categorized emoji picker and the welcome splash has a pixel-snap exit animation.
+- Reactions require the unique index in `202611150003_unique_message_reactions.sql`, which is also applied to the connected Supabase database.
