@@ -13,6 +13,17 @@ const EMOJI_CATEGORIES = [
   { name: 'Fun', items: ['🔥','✨','💯','🎉','🥳','👑','💎','🌈','⭐','⚡','🍿','🧋','🦋','🐸'] }
 ];
 const EMOJIS = ['❤️','😂','🔥','😍','😭','💀','🫶','✨','👀','🥹','🤌','🗿'];
+const STICKERS = [
+  {id:'laugh',label:'Laughing',art:'😂'},
+  {id:'cry',label:'Crying',art:'😭'},
+  {id:'skull',label:'Dead laughing',art:'💀'},
+  {id:'shock',label:'Shocked',art:'😱'},
+  {id:'love',label:'Love',art:'🥰'},
+  {id:'clown',label:'Clown moment',art:'🤡'},
+  {id:'fire',label:'Fire',art:'🔥'},
+  {id:'dance',label:'Party',art:'🥳'}
+];
+
 // Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
 const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
@@ -46,7 +57,12 @@ function App() {
   const [dark, setDark] = useState(true);
   const [toast, setToast] = useState('');
   const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
+  const initialScrollDoneRef = useRef(false);
   const channelRef = useRef(null);
+  const touchStartRef = useRef(null);
+  const longPressRef = useRef(null);
+  const [reactingMessage, setReactingMessage] = useState(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -59,7 +75,7 @@ function App() {
     if (!session || !supabase) { setProfile(null); return; }
     let live = true;
     (async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+      const { data } = await supabase.from('profiles').select('id,username,gender,created_at,is_banned,last_seen_at').eq('id', session.user.id).maybeSingle();
       if (live) {
         setProfile(data);
         if (!data) setError('Your profile is missing. Please sign out and create your account again.');
@@ -91,9 +107,10 @@ function App() {
     heartbeat();
     const messagesChannel = supabase.channel('chat-messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, () => loadMessages())
       .subscribe();
-    channelRef.current = { presence, messagesChannel };
-    return () => { supabase.removeChannel(presence); supabase.removeChannel(messagesChannel); };
+    channelRef.current = messagesChannel;
+    return () => { supabase.removeChannel(messagesChannel); channelRef.current = null; };
   }, [session, profile, conversation]);
 
   useEffect(() => {
@@ -102,7 +119,7 @@ function App() {
       try {
         const response = await fetch(import.meta.env.VITE_SUPABASE_URL + '/functions/v1/chaattiko-admin', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: 'Bearer ' + session.access_token },
           body: JSON.stringify({ action: 'presence' })
         });
         const result = await response.json();
@@ -118,7 +135,17 @@ function App() {
     return () => clearInterval(timer);
   }, [session?.user?.id, profile?.id]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // Behave like WhatsApp: new messages only auto-follow when the reader is
+    // already near the latest message. Never pull someone away from history.
+    if (!initialScrollDoneRef.current || distanceFromBottom < 140) {
+      el.scrollTo({ top: el.scrollHeight, behavior: initialScrollDoneRef.current ? 'smooth' : 'auto' });
+      initialScrollDoneRef.current = true;
+    }
+  }, [messages]);
 
   async function loadPeople() {
     const { data, error: peopleError } = await supabase.from('profiles').select('id,username,gender,last_seen_at,is_banned').neq('id', session.user.id).eq('is_banned', false).order('username');
@@ -158,9 +185,9 @@ function App() {
     try {
       const email = aliasEmail(nickname);
       if (mode === 'signup') {
-        const { data: existing, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', nickname).limit(1);
-        if (lookupError) throw lookupError;
-        if (existing?.length) throw new Error('That nickname is already taken. Please choose another.');
+        // Do not query profiles before authentication: anonymous users intentionally
+        // have no access to this table. The unique lower(username) index is the
+        // authoritative duplicate check during the authenticated profile insert.
         const {data,error:authError} = await supabase.auth.signUp({email,password,options:{data:{nickname}}});
         if (authError) throw authError;
         if (!data.user) throw new Error('Signup did not return a user.');
@@ -174,7 +201,14 @@ function App() {
         const {error:authError} = await supabase.auth.signInWithPassword({email,password});
         if (authError) throw authError;
       }
-    } catch (e) { setError(e.message || 'Unable to sign in.'); }
+    } catch (e) {
+      const message = e.message || 'Unable to sign in.';
+      if (/profiles_username|duplicate key|unique constraint/i.test(message)) {
+        setError('That nickname is already taken. Please choose another.');
+      } else {
+        setError(message);
+      }
+    }
     finally { setBusy(false); }
   }
 
@@ -187,6 +221,28 @@ function App() {
       reply_to:reply?.id || null, conversation_id:conversation || null
     });
     if (e2) setToast(e2.message); else { setDraft(''); setReply(null); }
+  }
+
+  async function sendEmoji(emoji) {
+    if (!profile || !session) return;
+    setEmojiOpen(false);
+    const {error:e} = await supabase.from('messages').insert({
+      user_id:session.user.id, username:profile.username, body:emoji,
+      reply_to:reply?.id || null, conversation_id:conversation || null
+    });
+    if (e) setToast(e.message);
+    else setReply(null);
+  }
+
+  async function sendSticker(stickerId) {
+    if (!profile || !session) return;
+    setEmojiOpen(false);
+    const {error:e} = await supabase.from('messages').insert({
+      user_id:session.user.id, username:profile.username, body:`[[chaattiko-sticker:${stickerId}]]`,
+      reply_to:reply?.id || null, conversation_id:conversation || null
+    });
+    if (e) setToast(e.message);
+    else setReply(null);
   }
   async function openPrivate(person) {
     const {data,error:e} = await supabase.rpc('start_direct_conversation',{other_user:person.id});
@@ -243,27 +299,35 @@ function App() {
   </main>;
 
   const visiblePeople = [...people].sort((a,b)=>(favorites.includes(b.id)-favorites.includes(a.id)) || (online.includes(b.id)-online.includes(a.id)) || a.username.localeCompare(b.username));
-  const isBlocked = target && blocked.some(b=>(b.blocker_id===session.user.id&&b.blocked_id===target.id)||(b.blocker_id===target.id&&b.blocked_id===session.user.id));
+  const blockedByMe = target && blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===target.id);
+  const blockedByOther = target && blocked.some(b=>b.blocker_id===target.id&&b.blocked_id===session.user.id);
+  const isBlocked = Boolean(blockedByMe || blockedByOther);
   return <main className={dark?'app dark':'app light'}>
     <header className="topbar"><div className="brand"><div className="brand-mini">C</div><span>chaattiko<span className="blue">.</span></span></div><div className="top-actions"><span className="online-pill"><i/> {online.length} online</span><button className="icon-btn" onClick={()=>setDark(!dark)} title="Toggle theme">{dark?<Sun/>:<Moon/>}</button><button className="icon-btn" onClick={signOut} title="Sign out"><LogOut/></button></div></header>
     <div className="workspace">
       <aside className={showPeople?'people-panel show':'people-panel'}>
         <div className="panel-heading"><div><span className="eyebrow">YOUR SPACE</span><h2>People <span>{people.length}</span></h2></div><button className="icon-btn mobile-close" onClick={()=>setShowPeople(false)}><X/></button></div>
+        <button className={'sidebar-common-btn '+(!target?'active':'')} onClick={()=>{setTarget(null);setConversation(null);setReply(null);setShowPeople(false);}}><MessageCircle size={17}/><span><b>Common area</b><small>Join the public conversation</small></span>{!target&&<i/>}</button>
         <button className="random-card" onClick={randomChat}><div className="random-icon"><Shuffle/></div><div><b>Random chat</b><small>Meet someone new</small></div><span>↗</span></button>
         <div className="people-label">ONLINE NOW <span>{online.length}</span></div>
-        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)}/>)}
+        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} online={online.includes(p.id)} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
         <div className="people-label">ALL PEOPLE <span>{people.length}</span></div>
-        {visiblePeople.filter(p=>!online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)}/>)}
+        {visiblePeople.filter(p=>!online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
         <div className="sidebar-foot"><div className="avatar">{profile.username.slice(0,1).toUpperCase()}</div><div><b>{profile.username}</b><small>You're in the room</small></div><button className="icon-btn" onClick={signOut}><LogOut size={17}/></button></div>
       </aside>
       <section className="chat-panel">
-        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title="Block / unblock"><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
-        <div className="messages">
-          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'pixel-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),650);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
+        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?(online.includes(target.id)?'● Online':'○ Offline'):'Everyone is welcome here'}</small></div>{target&&<button className="common-room-btn" onClick={()=>{setTarget(null);setConversation(null);setReply(null);setShowPeople(false);}}><MessageCircle size={15}/> Common chat</button>}{target&&!blockedByOther&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title={blockedByMe?'Unblock user':'Block user'}><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
+        <div className="messages" ref={messagesRef}>
+          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'splash-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),1450);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="splash-orbit"><i/><i/><i/></div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
-          {messages.map(m=><div key={m.id} className={m.user_id===session.user.id?'message mine':'message'}>
-            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
+          {messages.map(m=><div key={m.id} className={(m.user_id===session.user.id?'message mine':'message')+(reactingMessage===m.id?' reacting':'')}
+            onTouchStart={e=>{const t=e.touches[0];touchStartRef.current={x:t.clientX,y:t.clientY,id:m.id};longPressRef.current=setTimeout(()=>setReactingMessage(m.id),550);}}
+            onTouchMove={e=>{if(longPressRef.current&&touchStartRef.current){const t=e.touches[0];if(Math.abs(t.clientX-touchStartRef.current.x)>12||Math.abs(t.clientY-touchStartRef.current.y)>12){clearTimeout(longPressRef.current);longPressRef.current=null;}}}}
+            onTouchEnd={e=>{if(longPressRef.current){clearTimeout(longPressRef.current);longPressRef.current=null;}if(touchStartRef.current?.id===m.id){const dx=e.changedTouches[0].clientX-touchStartRef.current.x;if(Math.abs(dx)>65)setReply(m);}touchStartRef.current=null;}}
+            onTouchCancel={()=>{if(longPressRef.current)clearTimeout(longPressRef.current);longPressRef.current=null;touchStartRef.current=null;}}
+            onContextMenu={e=>{e.preventDefault();setReactingMessage(m.id);}}>
+            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className={m.body.startsWith('[[chaattiko-sticker:')&&m.body.endsWith(']]')?'bubble sticker-bubble':'bubble'}>{m.body.startsWith('[[chaattiko-sticker:')&&m.body.endsWith(']]')?<StickerMessage body={m.body}/>:m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{(reactingMessage===m.id?EMOJIS:EMOJIS.slice(0,4)).map(em=><button key={em} onClick={()=>{react(m,em);setReactingMessage(null);}}>{em}</button>)}{reactingMessage===m.id&&<button onClick={()=>setReactingMessage(null)}>×</button>}</div></div>
           </div>)}
           <div ref={bottomRef}/>
         </div>
@@ -272,8 +336,9 @@ function App() {
           <input value={draft} onChange={e=>setDraft(e.target.value)} placeholder={target?'Message privately…':'Send a message to everyone…'} maxLength="2000"/>
           <button className="emoji-btn" type="button" aria-label="Open emoji picker" onClick={()=>setEmojiOpen(v=>!v)}><Smile/></button>
           {emojiOpen&&<div className="emoji-picker">
-            <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}</div>
-            <div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>setDraft(d=>d+em)}>{em}</button>)}</div>
+            <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}<button type="button" className={emojiTab==='Memes'?'active':''} onClick={()=>setEmojiTab('Memes')}>Memes</button></div>
+            {emojiTab==='Memes'&&<div className="meme-grid">{STICKERS.map(sticker=><button type="button" className="sticker-choice" key={sticker.id} aria-label={sticker.label} title={sticker.label} onClick={()=>sendSticker(sticker.id)}><StickerArtwork id={sticker.id}/></button>)}</div>}
+            {emojiTab!=='Memes'&&<div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>sendEmoji(em)}>{em}</button>)}</div>}
           </div>}
           <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
         </form>}
@@ -284,8 +349,27 @@ function App() {
   </main>;
 }
 
-function Person({p,active,fav,onOpen,onFav}) {
-  return <div className={'person '+(active?'selected':'')}><button className="person-open" onClick={onOpen}><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><span><b>{p.username}</b><small>{p.last_seen_at?'Member':'New here'}</small></span></button><button className={'fav-btn '+(fav?'saved':'')} onClick={onFav}><Heart size={15} fill={fav?'currentColor':'none'}/></button></div>;
+function Person({p,online,active,fav,blockedByMe,blockedByOther,onOpen,onFav,onUnblock}) {
+  const unavailable=blockedByMe||blockedByOther;
+  return <div className={'person '+(active?'selected':'')}>
+    <button className="person-open" onClick={onOpen} disabled={unavailable}>
+      <div className="person-avatar-wrap"><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><i className={'presence-dot '+(online?'is-online':'')}/></div>
+      <span><b>{p.username}{p.gender&&<em className="gender-tag">{({woman:'♀ Woman',man:'♂ Man',non_binary:'⚧ Non-binary'}[p.gender]||p.gender)}</em>}</b><small>{blockedByMe?'Blocked by you':blockedByOther?'Unavailable':online?'Online':'Offline'}</small></span>
+    </button>
+    {blockedByMe?<button className="unblock-btn" onClick={onUnblock}>Unblock</button>:<button className={'fav-btn '+(fav?'saved':'')} onClick={onFav} disabled={blockedByOther}><Heart size={15} fill={fav?'currentColor':'none'}/></button>}
+  </div>;
 }
 
 createRoot(document.getElementById('root')).render(window.location.pathname === '/admin' ? <Admin/> : <App/>);
+
+function StickerArtwork({id}) {
+  const sticker=STICKERS.find(item=>item.id===id)||STICKERS[0];
+  return <span className={`sticker-art sticker-${sticker.id}`} aria-hidden="true"><span>{sticker.art}</span><i/><i/><i/></span>;
+}
+
+function StickerMessage({body}) {
+  const id=body.slice('[[chaattiko-sticker:'.length,-2);
+  const sticker=STICKERS.find(item=>item.id===id);
+  if(!sticker) return null;
+  return <div className={`chat-sticker sticker-${sticker.id}`} role="img" aria-label={sticker.label}><StickerArtwork id={sticker.id}/></div>;
+}
