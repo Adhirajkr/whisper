@@ -257,15 +257,15 @@ function App() {
         <div className="panel-heading"><div><span className="eyebrow">YOUR SPACE</span><h2>People <span>{people.length}</span></h2></div><button className="icon-btn mobile-close" onClick={()=>setShowPeople(false)}><X/></button></div>
         <button className="random-card" onClick={randomChat}><div className="random-icon"><Shuffle/></div><div><b>Random chat</b><small>Meet someone new</small></div><span>↗</span></button>
         <div className="people-label">ONLINE NOW <span>{online.length}</span></div>
-        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
+        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} online={online.includes(p.id)} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
         <div className="people-label">ALL PEOPLE <span>{people.length}</span></div>
         {visiblePeople.filter(p=>!online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
         <div className="sidebar-foot"><div className="avatar">{profile.username.slice(0,1).toUpperCase()}</div><div><b>{profile.username}</b><small>You're in the room</small></div><button className="icon-btn" onClick={signOut}><LogOut size={17}/></button></div>
       </aside>
       <section className="chat-panel">
-        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?'Private conversation':'Everyone is welcome here'}</small></div>{target&&!blockedByOther&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title={blockedByMe?'Unblock user':'Block user'}><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
+        <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?(online.includes(target.id)?'● Online':'○ Offline'):'Everyone is welcome here'}</small></div>{target&&<button className="common-room-btn" onClick={()=>{setTarget(null);setConversation(null);setReply(null);setShowPeople(false);}}><MessageCircle size={15}/> Common chat</button>}{target&&!blockedByOther&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title={blockedByMe?'Unblock user':'Block user'}><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
         <div className="messages">
-          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'pixel-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),650);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
+          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'splash-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),420);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
           {messages.map(m=><div key={m.id} className={(m.user_id===session.user.id?'message mine':'message')+(reactingMessage===m.id?' reacting':'')}
@@ -295,12 +295,12 @@ function App() {
   </main>;
 }
 
-function Person({p,active,fav,blockedByMe,blockedByOther,onOpen,onFav,onUnblock}) {
+function Person({p,online,active,fav,blockedByMe,blockedByOther,onOpen,onFav,onUnblock}) {
   const unavailable=blockedByMe||blockedByOther;
   return <div className={'person '+(active?'selected':'')}>
     <button className="person-open" onClick={onOpen} disabled={unavailable}>
-      <div className="avatar">{p.username.slice(0,1).toUpperCase()}</div>
-      <span><b>{p.username}</b><small>{blockedByMe?'Blocked by you':blockedByOther?'Unavailable':p.last_seen_at?'Member':'New here'}</small></span>
+      <div className="person-avatar-wrap"><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><i className={'presence-dot '+(online?'is-online':'')}/></div>
+      <span><b>{p.username}{p.gender&&<em className="gender-tag">{({woman:'♀ Woman',man:'♂ Man',non_binary:'⚧ Non-binary'}[p.gender]||p.gender)}</em>}</b><small>{blockedByMe?'Blocked by you':blockedByOther?'Unavailable':online?'Online':'Offline'}</small></span>
     </button>
     {blockedByMe?<button className="unblock-btn" onClick={onUnblock}>Unblock</button>:<button className={'fav-btn '+(fav?'saved':'')} onClick={onFav} disabled={blockedByOther}><Heart size={15} fill={fav?'currentColor':'none'}/></button>}
   </div>;
