@@ -39,7 +39,10 @@ function App() {
   const [favorites, setFavorites] = useState([]);
   const [blocked, setBlocked] = useState([]);
   const [showPeople, setShowPeople] = useState(false);
-  const [splash, setSplash] = useState(true);\n  const [splashExiting, setSplashExiting] = useState(false);\n  const [emojiOpen, setEmojiOpen] = useState(false);\n  const [emojiTab, setEmojiTab] = useState('Trending');
+  const [splash, setSplash] = useState(true);
+  const [splashExiting, setSplashExiting] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiTab, setEmojiTab] = useState('Trending');
   const [dark, setDark] = useState(true);
   const [toast, setToast] = useState('');
   const bottomRef = useRef(null);
