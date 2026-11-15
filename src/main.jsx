@@ -46,6 +46,8 @@ function App() {
   const [dark, setDark] = useState(true);
   const [toast, setToast] = useState('');
   const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
+  const initialScrollDoneRef = useRef(false);
   const channelRef = useRef(null);
   const touchStartRef = useRef(null);
   const longPressRef = useRef(null);
@@ -122,7 +124,17 @@ function App() {
     return () => clearInterval(timer);
   }, [session?.user?.id, profile?.id]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // Behave like WhatsApp: new messages only auto-follow when the reader is
+    // already near the latest message. Never pull someone away from history.
+    if (!initialScrollDoneRef.current || distanceFromBottom < 140) {
+      el.scrollTo({ top: el.scrollHeight, behavior: initialScrollDoneRef.current ? 'smooth' : 'auto' });
+      initialScrollDoneRef.current = true;
+    }
+  }, [messages]);
 
   async function loadPeople() {
     const { data, error: peopleError } = await supabase.from('profiles').select('id,username,gender,last_seen_at,is_banned').neq('id', session.user.id).eq('is_banned', false).order('username');
@@ -262,6 +274,7 @@ function App() {
     <div className="workspace">
       <aside className={showPeople?'people-panel show':'people-panel'}>
         <div className="panel-heading"><div><span className="eyebrow">YOUR SPACE</span><h2>People <span>{people.length}</span></h2></div><button className="icon-btn mobile-close" onClick={()=>setShowPeople(false)}><X/></button></div>
+        <button className={'sidebar-common-btn '+(!target?'active':'')} onClick={()=>{setTarget(null);setConversation(null);setReply(null);setShowPeople(false);}}><MessageCircle size={17}/><span><b>Common area</b><small>Join the public conversation</small></span>{!target&&<i/>}</button>
         <button className="random-card" onClick={randomChat}><div className="random-icon"><Shuffle/></div><div><b>Random chat</b><small>Meet someone new</small></div><span>↗</span></button>
         <div className="people-label">ONLINE NOW <span>{online.length}</span></div>
         {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} online={online.includes(p.id)} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
@@ -271,8 +284,8 @@ function App() {
       </aside>
       <section className="chat-panel">
         <div className="chat-head"><button className="icon-btn mobile-menu" onClick={()=>setShowPeople(true)}><Menu/></button><div className="chat-avatar">{target?target.username.slice(0,1).toUpperCase():'#'}</div><div className="chat-title"><b>{target?target.username:'The common room'}</b><small>{target?(online.includes(target.id)?'● Online':'○ Offline'):'Everyone is welcome here'}</small></div>{target&&<button className="common-room-btn" onClick={()=>{setTarget(null);setConversation(null);setReply(null);setShowPeople(false);}}><MessageCircle size={15}/> Common chat</button>}{target&&!blockedByOther&&<button className="icon-btn" onClick={()=>toggleBlock(target)} title={blockedByMe?'Unblock user':'Block user'}><Ban size={18}/></button>}<div className="room-tag"><i/> {target?'PRIVATE':'PUBLIC'}</div></div>
-        <div className="messages">
-          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'splash-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),420);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="pixel-dots">▪ ▪ ▪ ▪ ▪ ▪ ▪</div></div>}
+        <div className="messages" ref={messagesRef}>
+          {!target&&splash&&<div className={'welcome-splash '+(splashExiting?'splash-exit':'')} onClick={()=>{if(!splashExiting){setSplashExiting(true);setTimeout(()=>setSplash(false),1450);}}}><div className="splash-logo">C</div><h2>Let's chat<span>'s</span></h2><p>Tap anywhere to enter the room</p><div className="splash-orbit"><i/><i/><i/></div></div>}
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
           {messages.map(m=><div key={m.id} className={(m.user_id===session.user.id?'message mine':'message')+(reactingMessage===m.id?' reacting':'')}
@@ -290,8 +303,9 @@ function App() {
           <input value={draft} onChange={e=>setDraft(e.target.value)} placeholder={target?'Message privately…':'Send a message to everyone…'} maxLength="2000"/>
           <button className="emoji-btn" type="button" aria-label="Open emoji picker" onClick={()=>setEmojiOpen(v=>!v)}><Smile/></button>
           {emojiOpen&&<div className="emoji-picker">
-            <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}</div>
-            <div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>setDraft(d=>d+em)}>{em}</button>)}</div>
+            <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}<button type="button" className={emojiTab==='Memes'?'active':''} onClick={()=>setEmojiTab('Memes')}>Memes</button></div>
+            {emojiTab==='Memes'&&<div className="meme-grid">{['67','LOL','LMAO','BRUH','NAH 💀','FR','FR FR','NO WAY','SUS','RIZZ','SKIBIDI','ATE','GOAT','W','L','🗿'].map(word=><button type="button" key={word} onClick={()=>setDraft(d=>(d?d+' ':'')+word)}>{word}</button>)}</div>}
+            {emojiTab!=='Memes'&&<div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>setDraft(d=>d+em)}>{em}</button>)}</div>}
           </div>}
           <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
         </form>}
