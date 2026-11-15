@@ -218,7 +218,12 @@ function App() {
         const {error:authError} = await supabase.auth.signInWithPassword({email,password});
         if (authError) throw authError;
       }
-    } catch (e) { setError(e.message || 'Unable to sign in.'); }
+    } catch (e) {
+      const message = e?.message || 'Unable to sign in.';
+      if (message.toLowerCase().includes('invalid login credentials')) {
+        setError('This nickname is already registered, but the password did not match. Try the original password. Nickname-only accounts do not have email-based password recovery yet; ask the site administrator for a password reset if you have forgotten it.');
+      } else setError(message);
+    }
     finally { setBusy(false); }
   }
 
