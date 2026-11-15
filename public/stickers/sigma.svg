@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="190" viewBox="0 0 240 190" role="img" aria-label="SIGMA sticker">
+ <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c2c8d5"/><stop offset="1" stop-color="#5b657d"/></linearGradient><filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#14213b" flood-opacity=".22"/></filter></defs>
+ <style>.bob{transform-origin:120px 100px;animation:bob 2.2s ease-in-out infinite}.spark{transform-origin:center;animation:blink 1.4s ease-in-out infinite alternate}@keyframes bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}@keyframes blink{from{opacity:.3;transform:scale(.7)}to{opacity:1;transform:scale(1.2)}}</style>
+ <rect x="5" y="5" width="230" height="180" rx="25" fill="url(#bg)" stroke="#ffffff" stroke-opacity=".65" stroke-width="3"/>
+ <circle class="spark" cx="28" cy="31" r="5" fill="#fff"/><path class="spark" d="M202 25 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4Z" fill="#fff"/>
+ <g filter="url(#shadow)"><g class="bob"><path d="M120 25 L171 54 L181 116 L145 164 L95 164 L59 116 L69 54Z" fill="#8792a9" stroke="#273247" stroke-width="8"/><path d="M83 86 L110 78 L114 103 L88 108Z M157 86 L130 78 L126 103 L152 108Z" fill="#263248"/><path d="M105 132 L120 139 L135 132" fill="none" stroke="#263248" stroke-width="7" stroke-linecap="round"/><path d="M95 58 L120 44 L145 58" fill="none" stroke="#dce4f2" stroke-width="6" stroke-linecap="round"/></g></g>
+ <rect x="13" y="157" width="214" height="20" rx="10" fill="#16223b" fill-opacity=".82"/>
+ <text x="120" y="171" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="900" letter-spacing="1.4" fill="#fff">SILENT GRIND</text>
+ </svg>
