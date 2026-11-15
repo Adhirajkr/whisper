@@ -88,12 +88,16 @@ function App() {
     if (!session || !supabase) { setProfile(null); return; }
     let live = true;
     (async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
-      if (live) {
-        setProfile(data);
-        if (!data) setError('Your profile is missing. Please sign out and create your account again.');
-        if (data?.is_banned) { await supabase.auth.signOut(); setError('This account has been suspended.'); }
+      const { data, error: profileError } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+      if (!live) return;
+      if (profileError) {
+        setProfile(null);
+        setError('We could not load your profile. Your account is still safe. Please refresh and try again. (' + profileError.message + ')');
+        return;
       }
+      setProfile(data);
+      if (!data) setError('Your account is signed in, but its profile could not be found. Please contact support; do not create another account.');
+      if (data?.is_banned) { await supabase.auth.signOut(); setError('This account has been suspended.'); }
     })();
     return () => { live = false; };
   }, [session]);
