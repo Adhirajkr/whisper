@@ -158,19 +158,29 @@ function App() {
     try {
       const email = aliasEmail(nickname);
       if (mode === 'signup') {
-        const { data: existing, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', nickname).limit(1);
-        if (lookupError) throw lookupError;
-        if (existing?.length) throw new Error('That nickname is already taken. Please choose another.');
-        const {data,error:authError} = await supabase.auth.signUp({
+        // Do not query profiles from the signed-out client: profile reads are intentionally
+        // restricted to authenticated users. The database trigger + unique index are authoritative.
+        const { data, error: authError } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { nickname, original_name: originalName || null, gender: gender || null } }
+          options: { data: { nickname: nickname.trim(), original_name: originalName.trim() || null, gender: gender || null } }
         });
-        if (authError) throw authError;
+        if (authError) {
+          const message = (authError.message || '').toLowerCase();
+          if (message.includes('already registered') || message.includes('already exists') || message.includes('duplicate key') || message.includes('unique constraint')) {
+            throw new Error('That nickname is already in use. Please choose a different nickname, or switch to Sign in if this is your account.');
+          }
+          if (message.includes('database error saving new user')) {
+            throw new Error('Chaattiko could not create the profile. Please try a different nickname. If this keeps happening, contact the site administrator.');
+          }
+          throw authError;
+        }
         if (!data.user) throw new Error('Signup did not return a user.');
-        // The database creates the matching profile in an auth.users trigger.
-        // Profile creation is transactional, so failed profile inserts cannot leave orphan accounts.
-        if (!data.session) setError('Account created. Check Supabase Auth settings: disable email confirmations for nickname-only login, then sign in.');
+        // The database trigger creates the profile in the same Auth transaction.
+        if (!data.session) {
+          setError('Your account was created, but email confirmation is enabled. Nickname-only accounts cannot receive that email. Please ask the administrator to disable email confirmation, then use Sign in.');
+          setMode('login');
+        }
       } else {
         const {error:authError} = await supabase.auth.signInWithPassword({email,password});
         if (authError) throw authError;
@@ -225,7 +235,7 @@ function App() {
     <section className="auth-card">
       <div className="brand-mark">C</div><div className="eyebrow"><Sparkles size={14}/> ANONYMOUS CONNECTIONS</div>
       <h1>chaattiko<span>.</span></h1><p className="muted">A little world. A thousand conversations.</p>
-      <div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Sign in</button><button className={mode==='signup'?'active':''} onClick={()=>setMode('signup')}>Create account</button></div>
+      <div className="auth-tabs"><button type="button" className={mode==='login'?'active':''} onClick={()=>{setMode('login');setError('');setPassword('');}}>Sign in</button><button type="button" className={mode==='signup'?'active':''} onClick={()=>{setMode('signup');setError('');setPassword('');}}>Create account</button></div>
       <form onSubmit={authenticate} className="auth-form">
         <label>Public nickname<input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="e.g. midnightowl" autoComplete="username" required/></label>
         {mode==='signup' && <>
