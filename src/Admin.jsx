@@ -15,7 +15,7 @@ export default function Admin() {
   const [busy,setBusy] = useState(false);
 
   async function call(action,extra={}) {
-    const res = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify({action,...extra})});
+    const res = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json','apikey':import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify({action,...extra})});
     const result = await res.json().catch(()=>({error:'Invalid server response'}));
     if(!res.ok) throw new Error(result.error || 'Admin request failed');
     return result;
