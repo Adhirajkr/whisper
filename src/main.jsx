@@ -257,9 +257,9 @@ function App() {
         <div className="panel-heading"><div><span className="eyebrow">YOUR SPACE</span><h2>People <span>{people.length}</span></h2></div><button className="icon-btn mobile-close" onClick={()=>setShowPeople(false)}><X/></button></div>
         <button className="random-card" onClick={randomChat}><div className="random-icon"><Shuffle/></div><div><b>Random chat</b><small>Meet someone new</small></div><span>↗</span></button>
         <div className="people-label">ONLINE NOW <span>{online.length}</span></div>
-        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)}/>)}
+        {visiblePeople.filter(p=>online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
         <div className="people-label">ALL PEOPLE <span>{people.length}</span></div>
-        {visiblePeople.filter(p=>!online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)}/>)}
+        {visiblePeople.filter(p=>!online.includes(p.id)).map(p=><Person key={p.id} p={p} active={target?.id===p.id} fav={favorites.includes(p.id)} blockedByMe={blocked.some(b=>b.blocker_id===session.user.id&&b.blocked_id===p.id)} blockedByOther={blocked.some(b=>b.blocker_id===p.id&&b.blocked_id===session.user.id)} onOpen={()=>openPrivate(p)} onFav={()=>toggleFavorite(p)} onUnblock={()=>toggleBlock(p)}/>)}
         <div className="sidebar-foot"><div className="avatar">{profile.username.slice(0,1).toUpperCase()}</div><div><b>{profile.username}</b><small>You're in the room</small></div><button className="icon-btn" onClick={signOut}><LogOut size={17}/></button></div>
       </aside>
       <section className="chat-panel">
@@ -295,8 +295,15 @@ function App() {
   </main>;
 }
 
-function Person({p,active,fav,onOpen,onFav}) {
-  return <div className={'person '+(active?'selected':'')}><button className="person-open" onClick={onOpen}><div className="avatar">{p.username.slice(0,1).toUpperCase()}</div><span><b>{p.username}</b><small>{p.last_seen_at?'Member':'New here'}</small></span></button><button className={'fav-btn '+(fav?'saved':'')} onClick={onFav}><Heart size={15} fill={fav?'currentColor':'none'}/></button></div>;
+function Person({p,active,fav,blockedByMe,blockedByOther,onOpen,onFav,onUnblock}) {
+  const unavailable=blockedByMe||blockedByOther;
+  return <div className={'person '+(active?'selected':'')}>
+    <button className="person-open" onClick={onOpen} disabled={unavailable}>
+      <div className="avatar">{p.username.slice(0,1).toUpperCase()}</div>
+      <span><b>{p.username}</b><small>{blockedByMe?'Blocked by you':blockedByOther?'Unavailable':p.last_seen_at?'Member':'New here'}</small></span>
+    </button>
+    {blockedByMe?<button className="unblock-btn" onClick={onUnblock}>Unblock</button>:<button className={'fav-btn '+(fav?'saved':'')} onClick={onFav} disabled={blockedByOther}><Heart size={15} fill={fav?'currentColor':'none'}/></button>}
+  </div>;
 }
 
 createRoot(document.getElementById('root')).render(window.location.pathname === '/admin' ? <Admin/> : <App/>);
