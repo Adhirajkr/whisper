@@ -42,19 +42,6 @@ function StickerMessage({ body }) {
     <img src={sticker.image} alt={sticker.title + ' animated sticker'} loading="lazy" />
   </div>;
 }
-const stickerBody = (kind, id) => '[[chaattiko:' + kind + ':' + id + ']]';
-function StickerMessage({ body }) {
-  const match = /^\[\[chaattiko:(emoji|meme):([^\]]+)\]\]$/.exec(body || '');
-  if (!match) return body;
-  const kind = match[1], id = match[2];
-  if (kind === 'emoji') return <div className="sent-emoji-sticker" aria-label={id}>{id}</div>;
-  const sticker = MEME_STICKERS.find(item => item.id === id);
-  if (!sticker) return body;
-  return <div className={'sent-meme-sticker ' + sticker.vibe} role="img" aria-label={sticker.title}>
-    <span className="meme-art">{sticker.art}</span><strong>{sticker.title}</strong><small>{sticker.sub}</small>
-    <i className="meme-spark spark-one">✦</i><i className="meme-spark spark-two">✧</i>
-  </div>;
-}
 // Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
 const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
@@ -179,7 +166,7 @@ function App() {
   }
   async function loadMessages() {
     if (!session) return;
-    let q = supabase.from('messages').select('id,user_id,username,body,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:true}).limit(150);
+    let q = supabase.from('messages').select('id,user_id,username,body,message_type,reply_to,created_at,conversation_id').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:true}).limit(150);
     q = conversation ? q.eq('conversation_id',conversation) : q.is('conversation_id',null);
     const {data,error:e} = await q;
     if (!e) {
