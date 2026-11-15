@@ -72,5 +72,18 @@ Deno.serve(async(req:Request)=>{
   const {error}=await db.from("messages").delete().eq("id",messageId);if(error)return json({error:error.message},500);
   await db.from("admin_audit").insert({action:"delete_message",details:{message_id:messageId}});return json({ok:true});
  }
+ if(body.action==="delete_user"){
+  const userId=String(body.userId||"");
+  if(!userId)return json({error:"User ID is required."},400);
+  const {data:target,error:lookupError}=await db.from("profiles").select("id,username").eq("id",userId).maybeSingle();
+  if(lookupError)return json({error:lookupError.message},500);
+  if(!target)return json({error:"This user profile no longer exists."},404);
+  const {error:authDeleteError}=await db.auth.admin.deleteUser(userId);
+  if(authDeleteError)return json({error:"Could not delete the login account: "+authDeleteError.message},500);
+  const {error:profileDeleteError}=await db.from("profiles").delete().eq("id",userId);
+  if(profileDeleteError)return json({error:"The login account was deleted, but the profile cleanup needs attention: "+profileDeleteError.message},500);
+  await db.from("admin_audit").insert({action:"delete_user",details:{user_id:userId,username:target.username}});
+  return json({ok:true,deletedUsername:target.username});
+ }
  return json({error:"Unknown admin action."},400);
 });
