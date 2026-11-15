@@ -72,6 +72,18 @@ alter table public.favorites enable row level security;
 alter table public.feedback enable row level security;
 alter table public.admin_audit enable row level security;
 
+-- Remove old/duplicate policies before installing this access model.
+do $
+declare p record;
+begin
+  for p in select schemaname,tablename,policyname from pg_policies
+    where schemaname='public' and tablename in
+      ('profiles','messages','reactions','conversations','conversation_members','blocks','favorites','feedback','admin_audit')
+  loop
+    execute format('drop policy if exists %I on %I.%I',p.policyname,p.schemaname,p.tablename);
+  end loop;
+end $;
+
 -- Policies are intentionally narrow. Disable anonymous sign-ins in Supabase Auth settings.
 create policy "Chaattiko profiles readable" on public.profiles for select to authenticated using (true);
 create policy "Chaattiko profile insert own" on public.profiles for insert to authenticated with check (id=(select auth.uid()));
