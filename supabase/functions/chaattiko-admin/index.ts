@@ -78,12 +78,32 @@ Deno.serve(async(req:Request)=>{
   const {data:target,error:lookupError}=await db.from("profiles").select("id,username").eq("id",userId).maybeSingle();
   if(lookupError)return json({error:lookupError.message},500);
   if(!target)return json({error:"This user profile no longer exists."},404);
-  const {error:authDeleteError}=await db.auth.admin.deleteUser(userId);
-  if(authDeleteError)return json({error:"Could not delete the login account: "+authDeleteError.message},500);
-  const {error:profileDeleteError}=await db.from("profiles").delete().eq("id",userId);
-  if(profileDeleteError)return json({error:"The login account was deleted, but the profile cleanup needs attention: "+profileDeleteError.message},500);
+  const {data:memberships,error:memberError}=await db.from("conversation_members").select("conversation_id").eq("user_id",userId);
+  if(memberError)return json({error:memberError.message},500);
+  const ids=[...new Set((memberships||[]).map(row=>row.conversation_id))];
   await db.from("admin_audit").insert({action:"delete_user",details:{user_id:userId,username:target.username}});
-  return json({ok:true,deletedUsername:target.username});
+  if(ids.length){
+    const privateMessages=await db.from("messages").delete().in("conversation_id",ids);
+    if(privateMessages.error)return json({error:privateMessages.error.message},500);
+    const membershipsDeleted=await db.from("conversation_members").delete().in("conversation_id",ids);
+    if(membershipsDeleted.error)return json({error:membershipsDeleted.error.message},500);
+    const conversationsDeleted=await db.from("conversations").delete().in("id",ids);
+    if(conversationsDeleted.error)return json({error:conversationsDeleted.error.message},500);
+  }
+  const ownedData=[
+    await db.from("reactions").delete().eq("user_id",userId),
+    await db.from("messages").delete().eq("user_id",userId),
+    await db.from("blocks").delete().or("blocker_id.eq."+userId+",blocked_id.eq."+userId),
+    await db.from("favorites").delete().or("user_id.eq."+userId+",other_user_id.eq."+userId),
+    await db.from("feedback").delete().eq("user_id",userId),
+    await db.from("conversation_members").delete().eq("user_id",userId),
+    await db.from("profiles").delete().eq("id",userId)
+  ];
+  const failed=ownedData.find(result=>result.error);
+  if(failed)return json({error:"Some account data could not be removed: "+failed.error.message},500);
+  const authResult=await db.auth.admin.deleteUser(userId);
+  if(authResult.error)return json({error:"User data was cleared, but authentication deletion failed: "+authResult.error.message},500);
+  return json({ok:true,deletedUsername:target.username,cleared:true});
  }
  return json({error:"Unknown admin action."},400);
 });
