@@ -191,14 +191,15 @@ function App() {
         const { data: existing, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', nickname).limit(1);
         if (lookupError) throw lookupError;
         if (existing?.length) throw new Error('That nickname is already taken. Please choose another.');
-        const {data,error:authError} = await supabase.auth.signUp({email,password,options:{data:{nickname}}});
+        const {data,error:authError} = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { nickname, original_name: originalName || null, gender: gender || null } }
+        });
         if (authError) throw authError;
         if (!data.user) throw new Error('Signup did not return a user.');
-        const {error:profileError} = await supabase.from('profiles').insert({
-          id:data.user.id, username:nickname, original_name:originalName || null,
-          gender:gender || null, accepted_terms_at:new Date().toISOString()
-        });
-        if (profileError) throw profileError;
+        // The database creates the matching profile in an auth.users trigger.
+        // Keeping profile creation inside the database transaction prevents orphan accounts.
         if (!data.session) setError('Account created. Check Supabase Auth settings: disable email confirmations for nickname-only login, then sign in.');
       } else {
         const {error:authError} = await supabase.auth.signInWithPassword({email,password});
