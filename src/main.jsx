@@ -125,8 +125,11 @@ function App() {
     const messagesChannel = supabase.channel('chat-messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
       .subscribe();
-    channelRef.current = { presence, messagesChannel };
-    return () => { supabase.removeChannel(presence); supabase.removeChannel(messagesChannel); };
+    channelRef.current = messagesChannel;
+    return () => {
+      if (channelRef.current === messagesChannel) channelRef.current = null;
+      supabase.removeChannel(messagesChannel);
+    };
   }, [session, profile, conversation]);
 
   useEffect(() => {
@@ -150,6 +153,15 @@ function App() {
     const timer = setInterval(beat, 20000);
     return () => clearInterval(timer);
   }, [session?.user?.id, profile?.id]);
+
+  useEffect(() => {
+    if (!session || !profile || target || !splash) return;
+    const timer = setTimeout(() => {
+      setSplashExiting(true);
+      setTimeout(() => setSplash(false), 650);
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [session, profile, target, splash]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
