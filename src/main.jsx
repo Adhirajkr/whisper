@@ -13,6 +13,36 @@ const EMOJI_CATEGORIES = [
   { name: 'Fun', items: ['🔥','✨','💯','🎉','🥳','👑','💎','🌈','⭐','⚡','🍿','🧋','🦋','🐸'] }
 ];
 const EMOJIS = ['❤️','😂','🔥','😍','😭','💀','🫶','✨','👀','🥹','🤌','🗿'];
+const MEME_STICKERS = [
+  { id:'six-seven', title:'6 7', sub:'SIX SEVEN', art:'67', vibe:'six-seven' },
+  { id:'lol', title:'LOL', sub:'CAN’T STOP LAUGHING', art:'😂', vibe:'lol' },
+  { id:'goat', title:'GOAT', sub:'GREATEST OF ALL TIME', art:'🐐', vibe:'goat' },
+  { id:'rizz', title:'RIZZ', sub:'UNMATCHED CHARISMA', art:'✨', vibe:'rizz' },
+  { id:'aura', title:'AURA', sub:'+1000 AURA', art:'✦', vibe:'aura' },
+  { id:'mogging', title:'MOGGING', sub:'MAIN CHARACTER', art:'😎', vibe:'mogging' },
+  { id:'cooked', title:'COOKED', sub:'IT’S OVER', art:'🔥', vibe:'cooked' },
+  { id:'skibidi', title:'SKIBIDI', sub:'WHAT DID I JUST SEE', art:'🚽', vibe:'skibidi' },
+  { id:'sigma', title:'SIGMA', sub:'ON MY OWN GRIND', art:'🗿', vibe:'sigma' },
+  { id:'no-cap', title:'NO CAP', sub:'100% FACTS', art:'🧢', vibe:'no-cap' },
+  { id:'bruh', title:'BRUH', sub:'SERIOUSLY?!', art:'💀', vibe:'bruh' },
+  { id:'npc', title:'NPC', sub:'SAME ENERGY', art:'🤖', vibe:'npc' },
+  { id:'w', title:'W', sub:'THAT’S A WIN', art:'🏆', vibe:'win' },
+  { id:'l', title:'L', sub:'TAKE THE L', art:'🥀', vibe:'loss' },
+  { id:'lock-in', title:'LOCK IN', sub:'FOCUS MODE', art:'⚡', vibe:'lock-in' }
+];
+const stickerBody = (kind, id) => '[[chaattiko:' + kind + ':' + id + ']]';
+function StickerMessage({ body }) {
+  const match = /^\[\[chaattiko:(emoji|meme):([^\]]+)\]\]$/.exec(body || '');
+  if (!match) return body;
+  const kind = match[1], id = match[2];
+  if (kind === 'emoji') return <div className="sent-emoji-sticker" aria-label={id}>{id}</div>;
+  const sticker = MEME_STICKERS.find(item => item.id === id);
+  if (!sticker) return body;
+  return <div className={'sent-meme-sticker ' + sticker.vibe} role="img" aria-label={sticker.title}>
+    <span className="meme-art">{sticker.art}</span><strong>{sticker.title}</strong><small>{sticker.sub}</small>
+    <i className="meme-spark spark-one">✦</i><i className="meme-spark spark-two">✧</i>
+  </div>;
+}
 // Supabase password Auth requires an email-shaped identifier. This internal alias is never shown to users.
 const aliasEmail = (name) => name.trim().toLowerCase() + '@login.chaattiko.com';
 
@@ -161,14 +191,15 @@ function App() {
         const { data: existing, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', nickname).limit(1);
         if (lookupError) throw lookupError;
         if (existing?.length) throw new Error('That nickname is already taken. Please choose another.');
-        const {data,error:authError} = await supabase.auth.signUp({email,password,options:{data:{nickname}}});
+        const {data,error:authError} = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { nickname, original_name: originalName || null, gender: gender || null } }
+        });
         if (authError) throw authError;
         if (!data.user) throw new Error('Signup did not return a user.');
-        const {error:profileError} = await supabase.from('profiles').insert({
-          id:data.user.id, username:nickname, original_name:originalName || null,
-          gender:gender || null, accepted_terms_at:new Date().toISOString()
-        });
-        if (profileError) throw profileError;
+        // The database creates the matching profile in an auth.users trigger.
+        // Keeping profile creation inside the database transaction prevents orphan accounts.
         if (!data.session) setError('Account created. Check Supabase Auth settings: disable email confirmations for nickname-only login, then sign in.');
       } else {
         const {error:authError} = await supabase.auth.signInWithPassword({email,password});
@@ -178,6 +209,15 @@ function App() {
     finally { setBusy(false); }
   }
 
+  async function sendSticker(kind, id) {
+    if (!profile) return;
+    const { error: stickerError } = await supabase.from('messages').insert({
+      user_id:session.user.id, username:profile.username, body:stickerBody(kind,id),
+      reply_to:reply?.id || null, conversation_id:conversation || null
+    });
+    if (stickerError) setToast(stickerError.message);
+    else { setEmojiOpen(false); setReply(null); }
+  }
   async function sendMessage(e) {
     e?.preventDefault();
     const body = draft.trim();
@@ -263,7 +303,7 @@ function App() {
           {target&&!messages.length&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>Say hello to {target.username}</h3><p>Your private conversation starts here.</p></div>}
           {!target&&!messages.length&&!splash&&<div className="empty-state"><div className="empty-icon"><MessageCircle/></div><h3>The room is yours</h3><p>Start a conversation. Someone will join in.</p></div>}
           {messages.map(m=><div key={m.id} className={m.user_id===session.user.id?'message mine':'message'}>
-            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className="bubble">{m.body}</div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
+            <div className="message-avatar">{(m.username||'?').slice(0,1).toUpperCase()}</div><div className="message-content"><div className="message-meta"><b>{m.user_id===session.user.id?'You':m.username}</b><time>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div><div className={m.body?.startsWith('[[chaattiko:') ? "bubble sticker-bubble" : "bubble"}><StickerMessage body={m.body}/></div>{reactions.filter(r=>r.message_id===m.id).length>0&&<div className="reaction-counts">{Object.entries(reactions.filter(r=>r.message_id===m.id).reduce((acc,r)=>{acc[r.emoji]=(acc[r.emoji]||0)+1;return acc;},{})).map(([em,count])=><span key={em}>{em} {count}</span>)}</div>}<div className="message-tools"><button onClick={()=>setReply(m)}><Reply size={13}/> Reply</button>{EMOJIS.map(em=><button key={em} onClick={()=>react(m,em)}>{em}</button>)}</div></div>
           </div>)}
           <div ref={bottomRef}/>
         </div>
@@ -272,8 +312,10 @@ function App() {
           <input value={draft} onChange={e=>setDraft(e.target.value)} placeholder={target?'Message privately…':'Send a message to everyone…'} maxLength="2000"/>
           <button className="emoji-btn" type="button" aria-label="Open emoji picker" onClick={()=>setEmojiOpen(v=>!v)}><Smile/></button>
           {emojiOpen&&<div className="emoji-picker">
-            <div className="emoji-tabs">{EMOJI_CATEGORIES.map(c=><button type="button" className={emojiTab===c.name?'active':''} key={c.name} onClick={()=>setEmojiTab(c.name)}>{c.name}</button>)}</div>
-            <div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} onClick={()=>setDraft(d=>d+em)}>{em}</button>)}</div>
+            <div className="emoji-tabs">{[...EMOJI_CATEGORIES.map(c=>c.name),'Memes'].map(tab=><button type="button" className={emojiTab===tab?'active':''} key={tab} onClick={()=>setEmojiTab(tab)}>{tab}</button>)}</div>
+            {emojiTab==='Memes'
+              ? <div className="meme-picker-grid">{MEME_STICKERS.map(sticker=><button type="button" className={'meme-picker-card ' + sticker.vibe} key={sticker.id} onClick={()=>sendSticker('meme',sticker.id)}><span>{sticker.art}</span><b>{sticker.title}</b><small>{sticker.sub}</small></button>)}</div>
+              : <div className="emoji-grid">{(EMOJI_CATEGORIES.find(c=>c.name===emojiTab)?.items||[]).map(em=><button type="button" key={em} aria-label={'Send ' + em} onClick={()=>sendSticker('emoji',em)}>{em}</button>)}</div>}
           </div>}
           <button className="send-btn" disabled={!draft.trim()}><Send size={17}/></button>
         </form>}
